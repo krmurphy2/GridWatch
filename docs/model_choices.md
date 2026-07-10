@@ -51,32 +51,34 @@ Use LiteLLM for the MVP.
 Reasons:
 
 1. It satisfies the challenge gateway requirement.
-2. It works with an Anthropic API key.
-3. It preserves optional fallback paths to OpenAI, Gemini, or local models.
+2. It works with an OpenAI API key.
+3. It preserves optional fallback paths to Anthropic, Gemini, or local models.
 4. It supports cost and usage tracking patterns needed by the repo rules.
 5. It keeps provider-specific code out of the LangGraph agent.
 
 ## Primary Model
 
-Use an Anthropic Claude Sonnet-class model as the primary model for the agent.
+Use OpenAI `gpt-5.1` as the primary model for the agent.
 
 Reasons:
 
 1. Strong instruction following for multi-step security guidance.
 2. Good fit for plain-English explanations for non-technical users.
 3. Good reasoning for tool selection and risk summarization.
-4. User expects to provide an Anthropic API key.
+4. Vision support for the router screenshot extraction task.
+5. User provides an OpenAI API key.
 
-The exact model version should be pinned in configuration when implementation
-starts so evaluations are reproducible.
+The model name is environment-configured via `OPENAI_MODEL` (default `gpt-5.1`)
+so evaluations are reproducible and experiments do not require code changes.
 
 ## Model Routing Plan
 
 | Task Type | Recommended Model Route | Reason |
 | --- | --- | --- |
-| Tool selection | Claude Sonnet-class primary | Accuracy and safety matter. |
-| Security answer synthesis | Claude Sonnet-class primary | Needs careful language and source-grounding. |
-| RAG answer generation | Claude Sonnet-class primary | Must avoid unsupported security claims. |
+| Screenshot extraction | OpenAI `gpt-5.1` (vision) | Reads router admin screenshots and returns structured fields. |
+| Tool selection | OpenAI `gpt-5.1` primary | Accuracy and safety matter. |
+| Security answer synthesis | OpenAI `gpt-5.1` primary | Needs careful language and source-grounding. |
+| RAG answer generation | OpenAI `gpt-5.1` primary | Must avoid unsupported security claims. |
 | Short classification | Lower-cost model if available | Can reduce cost after eval proves no quality loss. |
 | LLM-as-judge evals | Same family or stronger model than production | Keeps judging quality high. |
 | Embeddings | Separate embedding model | Generation models should not be used for retrieval embeddings. |
@@ -119,7 +121,7 @@ network descriptions. The system should:
 
 ## Open Questions
 
-1. Which exact Claude model version should be pinned for the first prototype?
+1. Should a cheaper vision model (e.g. `gpt-4o-mini`) be used for extraction once eval proves no quality loss?
 2. Should fallback be implemented during MVP or after baseline evals?
 3. Which embedding provider should be used for the first RAG corpus?
 4. Should LiteLLM run as a library in the backend or as a separate proxy service?
