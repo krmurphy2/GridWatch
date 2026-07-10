@@ -1,8 +1,26 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createUser, signIn, signOut, requireUser } from "@/lib/auth";
+import { createUser, signIn, signOut, requireUser, getCurrentUser } from "@/lib/auth";
+import { getLatestRouterProfile } from "@/lib/router-profile";
 import { processRouterSetup } from "@/lib/router-setup";
+
+// Returns /dashboard when the signed-in user already has a saved router profile,
+// otherwise /setup so they can capture their first piece of evidence.
+async function landingPathForCurrentUser() {
+  try {
+    const user = await getCurrentUser();
+
+    if (user) {
+      const profile = await getLatestRouterProfile(user.id);
+      return profile ? "/dashboard" : "/setup";
+    }
+  } catch {
+    // Fall through to the safe default below.
+  }
+
+  return "/setup";
+}
 
 function requiredString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -51,7 +69,7 @@ export async function signInAction(
     return { error: error instanceof Error ? error.message : "Could not sign in." };
   }
 
-  redirect("/setup");
+  redirect(await landingPathForCurrentUser());
 }
 
 export async function signOutAction() {
@@ -62,5 +80,5 @@ export async function signOutAction() {
 export async function saveRouterSetupAction(formData: FormData) {
   const user = await requireUser();
   await processRouterSetup(formData, user.id);
-  redirect("/setup?updated=1");
+  redirect("/dashboard?updated=1");
 }

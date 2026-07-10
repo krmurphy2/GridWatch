@@ -35,10 +35,10 @@ export default async function HomePage() {
             {user ? (
               <div className="stack">
                 <p className="eyebrow">Authenticated</p>
-                <h2>Continue setup</h2>
+                <h2>Welcome back</h2>
                 <p className="muted">You are signed in as {user.email}.</p>
-                <Link className="primary-button" href="/setup">
-                  Open information gathering
+                <Link className="primary-button" href="/dashboard">
+                  Open security dashboard
                 </Link>
               </div>
             ) : (
