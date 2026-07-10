@@ -1,0 +1,14 @@
+[project]
+name = "gridwatch-agent"
+version = "0.1.0"
+description = "LangGraph router screenshot extraction agent for GridWatch"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain-anthropic==0.1.23",
+    "langchain-core==0.2.38",
+    "langgraph==0.2.35",
+    "pydantic==2.8.2",
+]
+
+[tool.setuptools]
+py-modules = ["router_extraction"]

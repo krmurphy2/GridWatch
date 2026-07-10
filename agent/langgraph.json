@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "router_extraction": "./router_extraction.py:graph"
+  },
+  "env": ".env"
+}
