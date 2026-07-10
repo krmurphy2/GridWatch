@@ -69,6 +69,21 @@ export async function appendChatMessage(
   return { id, role, content, createdAt: new Date().toISOString() };
 }
 
+// Count a user's own messages sent within the last `windowMs`. Used to enforce
+// a per-user rate limit so the paid LLM chat endpoint can't be spammed (cost +
+// abuse protection). Derived from persisted timestamps so it works on
+// stateless/serverless runtimes without extra infrastructure.
+export async function countRecentUserMessages(
+  userId: string,
+  windowMs: number
+): Promise<number> {
+  const cutoff = Date.now() - windowMs;
+  const messages = await getChatMessages(userId);
+  return messages.filter(
+    (message) => message.role === "user" && new Date(message.createdAt).getTime() >= cutoff
+  ).length;
+}
+
 export async function clearChatMessages(userId: string): Promise<void> {
   if (useLocalFileDb()) {
     await localClearChatMessages(userId);

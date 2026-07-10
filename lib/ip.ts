@@ -5,7 +5,10 @@ export function isValidPublicIp(value: string | null | undefined) {
     return false;
   }
 
-  const ip = value.trim();
+  // Normalize IPv4-mapped IPv6 (e.g. "::ffff:127.0.0.1") down to the embedded
+  // IPv4 so loopback/private ranges are evaluated by the IPv4 rules below.
+  // Without this, isIP() reports version 6 and the mapped loopback slips through.
+  const ip = value.trim().replace(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i, "$1");
   const version = isIP(ip);
 
   if (version === 0) {

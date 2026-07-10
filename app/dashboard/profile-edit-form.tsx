@@ -53,7 +53,8 @@ export function ProfileEditForm({ values, publicIpSuggestion }: Props) {
 
   return (
     <form action={formAction} className="form-grid">
-      {state.error ? <p className="error">{state.error}</p> : null}
+      {state?.error ? <p className="error">{state.error}</p> : null}
+      {state?.ok ? <p className="success">Profile details saved.</p> : null}
 
       <label className="field">
         <span>Public IP</span>

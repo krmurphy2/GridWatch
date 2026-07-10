@@ -24,14 +24,14 @@ export function ChatForm() {
 
   // Clear the input after a successful send (no error returned).
   useEffect(() => {
-    if (!state.error && textareaRef.current) {
+    if (!state?.error && textareaRef.current) {
       textareaRef.current.value = "";
     }
   }, [state]);
 
   return (
     <form action={formAction} ref={formRef} className="chat-form">
-      {state.error ? <p className="error">{state.error}</p> : null}
+      {state?.error ? <p className="error">{state.error}</p> : null}
       <textarea
         ref={textareaRef}
         name="message"

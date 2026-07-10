@@ -10,11 +10,19 @@ import {
   type RouterProfileUpdates
 } from "@/lib/router-profile";
 import { processRouterSetup } from "@/lib/router-setup";
-import { appendChatMessage, clearChatMessages, getChatMessages } from "@/lib/chat";
+import {
+  appendChatMessage,
+  clearChatMessages,
+  countRecentUserMessages,
+  getChatMessages
+} from "@/lib/chat";
 import { getChatReply } from "@/lib/chat-client";
 
 const maxChatMessageLength = 2000;
 const chatHistoryLimit = 20;
+// Per-user rate limit on the paid LLM chat endpoint to prevent cost abuse.
+const chatRateLimitWindowMs = 60_000;
+const chatRateLimitMax = 15;
 
 // Returns /dashboard when the signed-in user already has a saved router profile,
 // otherwise /setup so they can capture their first piece of evidence.
@@ -113,6 +121,13 @@ export async function sendChatMessageAction(
   }
 
   try {
+    const recentCount = await countRecentUserMessages(user.id, chatRateLimitWindowMs);
+    if (recentCount >= chatRateLimitMax) {
+      return {
+        error: "You're sending messages too quickly. Please wait a moment and try again."
+      };
+    }
+
     await appendChatMessage(user.id, "user", message);
 
     const history = await getChatMessages(user.id);
@@ -138,7 +153,7 @@ export async function clearChatAction() {
   revalidatePath("/chat");
 }
 
-export type ProfileEditState = { error?: string };
+export type ProfileEditState = { error?: string; ok?: boolean };
 
 export async function updateRouterProfileAction(
   _prevState: ProfileEditState,
@@ -159,5 +174,11 @@ export async function updateRouterProfileAction(
     return { error: error instanceof Error ? error.message : "Could not update the profile." };
   }
 
-  redirect("/dashboard?updated=1");
+  // Refresh the dashboard's server-rendered data in place. We intentionally do
+  // not redirect here: pairing redirect() with useFormState can momentarily
+  // yield an undefined state on the client and crash the form during the
+  // transition. Returning a success state avoids that and keeps the user in
+  // place with the recomputed profile.
+  revalidatePath("/dashboard");
+  return { ok: true };
 }
