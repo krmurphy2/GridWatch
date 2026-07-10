@@ -1,9 +1,11 @@
 import json
 import os
+import time
 from typing import Any, Dict, List, Optional, TypedDict
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
+from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
@@ -29,6 +31,7 @@ class RouterExtractionState(TypedDict, total=False):
     imageMime: str
     userNotes: str
     output: Dict[str, Any]
+    namespace: str
 
 
 REQUIRED_FIELDS = [
@@ -114,9 +117,65 @@ def _strip_json_fence(text: str) -> str:
     return stripped
 
 
-def extract_router_details(state: RouterExtractionState) -> RouterExtractionState:
-    model_name = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
-    llm = ChatAnthropic(model=model_name, temperature=0, max_tokens=1200)
+def _resolve_namespace(config: Optional[RunnableConfig]) -> tuple[Optional[str], str]:
+    """Read the caller-provided per-user identity from the run config.
+
+    The frontend passes config.configurable.user_id/namespace so every user's
+    agent history is stored under its own namespace and never mixes with another
+    user's router details.
+    """
+    configurable = {}
+    if isinstance(config, dict):
+        configurable = config.get("configurable") or {}
+
+    user_id = configurable.get("user_id")
+    namespace = configurable.get("namespace") or (
+        f"user:{user_id}" if user_id else "user:unknown"
+    )
+    return user_id, namespace
+
+
+def _record_history(namespace: str, user_id: Optional[str], extraction: RouterExtraction) -> None:
+    """Persist a small per-run summary in the store under the user's namespace.
+
+    Defensive: if no store is bound to the run (e.g. some deploy targets), skip
+    silently rather than failing the extraction.
+    """
+    if not user_id:
+        return
+
+    try:
+        from langgraph.config import get_store
+
+        store = get_store()
+    except Exception:
+        return
+
+    if store is None:
+        return
+
+    try:
+        store.put(
+            (namespace, "router_extractions"),
+            f"extraction-{int(time.time() * 1000)}",
+            {
+                "routerVendor": extraction.routerVendor,
+                "routerModel": extraction.routerModel,
+                "firmwareVersion": extraction.firmwareVersion,
+                "missingFields": extraction.missingFields,
+            },
+        )
+    except Exception:
+        # History persistence is best-effort and must never block extraction.
+        return
+
+
+def extract_router_details(
+    state: RouterExtractionState, config: Optional[RunnableConfig] = None
+) -> RouterExtractionState:
+    user_id, namespace = _resolve_namespace(config)
+    model_name = os.getenv("OPENAI_MODEL", "gpt-5.1")
+    llm = ChatOpenAI(model=model_name, temperature=0, max_tokens=1200)
     image_base64 = state["imageBase64"]
     image_mime = state.get("imageMime", "image/png")
     user_notes = state.get("userNotes", "")
@@ -125,11 +184,9 @@ def extract_router_details(state: RouterExtractionState) -> RouterExtractionStat
         content=[
             {"type": "text", "text": _build_prompt(user_notes)},
             {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": image_mime,
-                    "data": image_base64,
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{image_mime};base64,{image_base64}",
                 },
             },
         ]
@@ -156,7 +213,8 @@ def extract_router_details(state: RouterExtractionState) -> RouterExtractionStat
             missing.add(field)
 
     extraction.missingFields = sorted(missing)
-    return {**state, "output": extraction.model_dump()}
+    _record_history(namespace, user_id, extraction)
+    return {**state, "output": extraction.model_dump(), "namespace": namespace}
 
 
 builder = StateGraph(RouterExtractionState)

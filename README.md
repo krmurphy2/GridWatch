@@ -105,7 +105,7 @@ flowchart TD
     Extract[Hosted router extraction graph]
     Agent[LangGraph agent]
     Gateway[LLM gateway]
-    LLM[Anthropic Claude]
+    LLM[OpenAI GPT]
     Memory[Session and assessment memory]
     VectorDB[Vector database]
     Docs[Trusted RAG corpus]
@@ -137,7 +137,7 @@ flowchart TD
 
 | Component | Choice | Why |
 | --- | --- | --- |
-| LLM | Anthropic Claude | Strong reasoning and plain-English security explanation. |
+| LLM | OpenAI (gpt-5.1) | Strong reasoning and plain-English security explanation; vision support for router screenshot extraction. |
 | LLM gateway | LiteLLM | Target gateway for provider routing, fallback, and cost tracking after the first extraction slice. |
 | Agent orchestration | LangGraph | Makes tool routing, approval gates, and agent state explicit. |
 | Tools | Screenshot extraction, exposure scan, passive intelligence, NVD, Tavily, RAG retriever | Matches the external-first MVP workflow. |

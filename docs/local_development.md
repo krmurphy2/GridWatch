@@ -89,7 +89,7 @@ LANGGRAPH_API_KEY="your-langgraph-api-key"
 LANGGRAPH_ASSISTANT_ID="router_extraction"
 ```
 
-The browser still does not call LangGraph or Anthropic directly. The Next.js server
+The browser still does not call LangGraph or OpenAI directly. The Next.js server
 calls the hosted graph from server-side code.
 
 ## Validation

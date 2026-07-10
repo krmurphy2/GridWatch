@@ -17,7 +17,7 @@ web app/API and a separately deployed AI extraction agent
 - Next.js 14 (App Router) + React 18 for the frontend/API at repo root
 - Neon serverless Postgres for persistence (via `@neondatabase/serverless`)
 - Python 3 LangGraph agent deployed to LangGraph/LangSmith
-- Anthropic Claude for router screenshot extraction
+- OpenAI (gpt-5.1) for router screenshot extraction
 
 ## Project Structure
 The Next.js app lives at the repo root (zero-config Vercel deploy). The Python

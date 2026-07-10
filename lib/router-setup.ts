@@ -35,11 +35,14 @@ export async function processRouterSetup(formData: FormData, userId: string) {
   const imageBase64 = buffer.toString("base64");
   const userNotes = typeof userNotesValue === "string" ? userNotesValue.trim() : "";
 
-  const extraction = await extractRouterDetails({
-    imageBase64,
-    imageMime: image.type,
-    userNotes
-  });
+  const extraction = await extractRouterDetails(
+    {
+      imageBase64,
+      imageMime: image.type,
+      userNotes
+    },
+    userId
+  );
 
   const resolvedScanTarget = scanTargetIp ?? extraction.publicIp;
 

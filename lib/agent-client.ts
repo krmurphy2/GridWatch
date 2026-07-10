@@ -1,5 +1,9 @@
+import { createHash } from "node:crypto";
+import { Buffer } from "node:buffer";
 import { z } from "zod";
 import type { RouterExtraction } from "./types";
+
+const AGENT_THREAD_NAMESPACE_UUID = "1b671a64-40d5-491e-99b0-da01ff1f3341";
 
 const extractionSchema = z.object({
   routerVendor: z.string().nullable().default(null),
@@ -22,6 +26,27 @@ type ExtractRouterInput = {
   imageMime: string;
   userNotes: string;
 };
+
+// Derive a stable RFC-4122 v5 UUID from a name so each user maps to exactly one
+// LangGraph thread. This keeps every user's agent run history in an isolated
+// thread namespace and prevents router details from cross-pollinating between users.
+function deterministicUuidV5(name: string, namespaceUuid: string) {
+  const nsBytes = Buffer.from(namespaceUuid.replace(/-/g, ""), "hex");
+  const hash = createHash("sha1").update(nsBytes).update(Buffer.from(name, "utf8")).digest();
+  const bytes = hash.subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50; // version 5
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC-4122 variant
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+function agentNamespace(userId: string) {
+  return `user:${userId}`;
+}
+
+function agentThreadId(userId: string) {
+  return deterministicUuidV5(userId, AGENT_THREAD_NAMESPACE_UUID);
+}
 
 function mockExtraction(): RouterExtraction {
   return {
@@ -52,20 +77,17 @@ function mockExtraction(): RouterExtraction {
   };
 }
 
-function getLangGraphRunUrl() {
+function getLangGraphBaseUrl() {
   const deploymentUrl = process.env.LANGGRAPH_DEPLOYMENT_URL;
 
   if (!deploymentUrl) {
     return null;
   }
 
-  const normalized = deploymentUrl.replace(/\/$/, "");
-
-  if (normalized.endsWith("/runs/wait") || normalized.includes("/threads/")) {
-    return normalized;
-  }
-
-  return `${normalized}/runs/wait`;
+  return deploymentUrl
+    .replace(/\/$/, "")
+    .replace(/\/runs\/wait$/, "")
+    .replace(/\/threads\/.*$/, "");
 }
 
 function extractOutput(payload: Record<string, unknown>) {
@@ -73,26 +95,53 @@ function extractOutput(payload: Record<string, unknown>) {
   return payload.output ?? payload.result ?? values?.output ?? values ?? payload;
 }
 
-export async function extractRouterDetails(input: ExtractRouterInput) {
-  const runUrl = getLangGraphRunUrl();
+export async function extractRouterDetails(input: ExtractRouterInput, userId: string) {
+  const baseUrl = getLangGraphBaseUrl();
 
-  if (process.env.USE_MOCK_AGENT === "true" || !runUrl) {
+  if (process.env.USE_MOCK_AGENT === "true" || !baseUrl) {
     return mockExtraction();
+  }
+
+  if (!userId) {
+    throw new Error("A userId is required to namespace the agent request.");
   }
 
   if (!process.env.LANGGRAPH_API_KEY) {
     throw new Error("LANGGRAPH_API_KEY is not configured.");
   }
 
-  const response = await fetch(runUrl, {
+  const headers = {
+    "content-type": "application/json",
+    authorization: `Bearer ${process.env.LANGGRAPH_API_KEY}`
+  };
+  const namespace = agentNamespace(userId);
+  const threadId = agentThreadId(userId);
+  const assistantId = process.env.LANGGRAPH_ASSISTANT_ID ?? "router_extraction";
+
+  // Ensure the caller's per-user thread exists (idempotent). Each user maps to a
+  // single deterministic thread, so agent history is isolated per user.
+  const threadResponse = await fetch(`${baseUrl}/threads`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${process.env.LANGGRAPH_API_KEY}`
-    },
+    headers,
     body: JSON.stringify({
-      assistant_id: process.env.LANGGRAPH_ASSISTANT_ID ?? "router_extraction",
-      input
+      thread_id: threadId,
+      metadata: { user_id: userId, namespace },
+      if_exists: "do_nothing"
+    })
+  });
+
+  if (!threadResponse.ok && threadResponse.status !== 409) {
+    const errorText = await threadResponse.text();
+    throw new Error(`Failed to open agent thread: ${threadResponse.status} ${errorText}`);
+  }
+
+  const response = await fetch(`${baseUrl}/threads/${threadId}/runs/wait`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      assistant_id: assistantId,
+      input,
+      config: { configurable: { user_id: userId, namespace } }
     })
   });
 
