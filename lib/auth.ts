@@ -55,7 +55,7 @@ export async function getUserCount() {
   return Number(result.rows[0]?.count ?? "0");
 }
 
-export async function createFirstUser(email: string, password: string, setupToken: string) {
+export async function createUser(email: string, password: string, setupToken: string) {
   if (!process.env.FIRST_USER_SETUP_TOKEN) {
     throw new Error("FIRST_USER_SETUP_TOKEN is not configured.");
   }
@@ -64,15 +64,15 @@ export async function createFirstUser(email: string, password: string, setupToke
     throw new Error("Invalid setup token.");
   }
 
-  const count = await getUserCount();
-
-  if (count > 0) {
-    throw new Error("First user already exists. Public signup is disabled.");
-  }
-
   const passwordResult = hashPassword(password);
 
   if (useLocalFileDb()) {
+    const existing = await localFindUserByEmail(email);
+
+    if (existing) {
+      throw new Error("An account with this email already exists.");
+    }
+
     const user = await localCreateUser({
       email,
       passwordHash: passwordResult.hash,
@@ -83,6 +83,13 @@ export async function createFirstUser(email: string, password: string, setupToke
   }
 
   await ensureSchema();
+
+  const existing = await sql`select 1 from users where lower(email) = lower(${email}) limit 1`;
+
+  if ((existing.rowCount ?? 0) > 0) {
+    throw new Error("An account with this email already exists.");
+  }
+
   const id = randomUUID();
 
   await sql`

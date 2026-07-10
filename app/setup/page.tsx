@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { getLatestRouterProfile } from "@/lib/router-profile";
 import { saveRouterSetupAction, signOutAction } from "../actions";
+import { ExtractSubmitButton } from "./submit-button";
 
 const importantFields = [
   ["routerVendor", "Router vendor"],
@@ -61,7 +62,7 @@ export default async function SetupPage({ searchParams }: { searchParams: { upda
                     I approve a future limited external exposure scan only against my verified router public IP. I understand GridWatch will refuse arbitrary public IP, domain, or CIDR scans.
                   </span>
                 </label>
-                <button className="primary-button" type="submit">Extract and save router profile</button>
+                <ExtractSubmitButton />
               </form>
             </div>
           </section>

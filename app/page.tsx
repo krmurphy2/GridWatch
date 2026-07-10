@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { getCurrentUser, getUserCount } from "@/lib/auth";
-import { setupFirstUserAction, signInAction } from "./actions";
+import { getCurrentUser } from "@/lib/auth";
+import { SignInForm, SignUpForm } from "./auth-forms";
 
 export default async function HomePage() {
-  const [user, userCount] = await Promise.all([getCurrentUser(), getUserCount()]);
-  const needsFirstUser = userCount === 0;
+  const user = await getCurrentUser();
 
   return (
     <main className="page-shell">
@@ -17,8 +16,8 @@ export default async function HomePage() {
           </p>
           <div className="kpi-grid">
             <div className="kpi">
-              <strong>1 user</strong>
-              <span className="muted">No public signup path</span>
+              <strong>Per user</strong>
+              <span className="muted">Each account is isolated</span>
             </div>
             <div className="kpi">
               <strong>Server-side</strong>
@@ -42,10 +41,11 @@ export default async function HomePage() {
                   Open information gathering
                 </Link>
               </div>
-            ) : needsFirstUser ? (
-              <FirstUserForm />
             ) : (
-              <SignInForm />
+              <div className="stack">
+                <SignInForm />
+                <SignUpForm />
+              </div>
             )}
           </div>
         </section>
@@ -54,46 +54,3 @@ export default async function HomePage() {
   );
 }
 
-function FirstUserForm() {
-  return (
-    <form className="form-grid" action={setupFirstUserAction}>
-      <p className="eyebrow">First user setup</p>
-      <h2>Create the only allowed user</h2>
-      <p className="notice">
-        Public signup is disabled. This form only works while no users exist and requires the private setup token from your Vercel environment.
-      </p>
-      <label className="field">
-        <span>Email</span>
-        <input name="email" type="email" autoComplete="email" required />
-      </label>
-      <label className="field">
-        <span>Password</span>
-        <input name="password" type="password" autoComplete="new-password" minLength={12} required />
-      </label>
-      <label className="field">
-        <span>First user setup token</span>
-        <input name="setupToken" type="password" autoComplete="off" required />
-      </label>
-      <button className="primary-button" type="submit">Create secure user</button>
-    </form>
-  );
-}
-
-function SignInForm() {
-  return (
-    <form className="form-grid" action={signInAction}>
-      <p className="eyebrow">Sign in</p>
-      <h2>Access GridWatch</h2>
-      <p className="muted">Only the first configured user can access this MVP deployment.</p>
-      <label className="field">
-        <span>Email</span>
-        <input name="email" type="email" autoComplete="email" required />
-      </label>
-      <label className="field">
-        <span>Password</span>
-        <input name="password" type="password" autoComplete="current-password" required />
-      </label>
-      <button className="primary-button" type="submit">Sign in</button>
-    </form>
-  );
-}

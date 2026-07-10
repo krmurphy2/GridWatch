@@ -114,8 +114,12 @@ export async function localCreateUser(input: {
 }) {
   const data = await readLocalData();
 
-  if (data.users.length > 0) {
-    throw new Error("First user already exists. Public signup is disabled.");
+  const emailTaken = data.users.some(
+    (existing) => existing.email.toLowerCase() === input.email.toLowerCase()
+  );
+
+  if (emailTaken) {
+    throw new Error("An account with this email already exists.");
   }
 
   const user = {
@@ -126,7 +130,7 @@ export async function localCreateUser(input: {
     createdAt: new Date().toISOString()
   };
 
-  await writeLocalData({ ...data, users: [user] });
+  await writeLocalData({ ...data, users: [...data.users, user] });
   return user;
 }
 
