@@ -31,7 +31,7 @@ flowchart TD
     UI[Web UI: dashboard and chat]
     Upload[Router screenshots and setup details]
     API[Vercel server actions and API routes]
-    DB[Vercel Postgres]
+    DB[Neon serverless Postgres]
     Extract[Hosted router extraction graph]
     Agent[LangGraph agent]
     Gateway[LLM gateway]
@@ -84,7 +84,7 @@ only approved external checks against the user's verified router public IP.
 2. The first deployment allows only one configured user; public signup is disabled after that user exists.
 3. The user uploads router screenshots or enters router details.
 4. The hosted LangGraph extraction graph extracts structured facts such as router vendor, model, firmware, remote administration status, UPnP clues, port forwarding clues, and public IP context when available.
-5. Vercel Postgres stores the first user, sessions, retained router evidence, extracted fields, missing fields, and scan approval state.
+5. Neon serverless Postgres stores users, sessions, retained router evidence, extracted fields, missing fields, and scan approval state.
 6. The user explicitly approves a public IP exposure scan.
 7. The backend verifies that the scan target is the user's router external IP.
 8. The backend performs a limited external scan for exposed ports and services.
@@ -194,6 +194,6 @@ payloads.
 
 ## Deployment Model
 
-The deployed prototype exposes a Vercel-hosted browser endpoint and server-side API routes. The frontend/API stores user and router profile state in Vercel Postgres and calls a hosted LangGraph deployment for router screenshot extraction. LangSmith/LangGraph Platform hosts and observes the graph; browser clients never call Anthropic, LangGraph, LangSmith, Shodan, Tavily, or other security APIs directly.
+The deployed prototype exposes a Vercel-hosted browser endpoint and server-side API routes. The frontend/API stores user and router profile state in Neon serverless Postgres and calls a hosted LangGraph deployment for router screenshot extraction. LangSmith/LangGraph Platform hosts and observes the graph; browser clients never call Anthropic, LangGraph, LangSmith, Shodan, Tavily, or other security APIs directly.
 
 It should not require any local scanner for the MVP. For the certification demo, synthetic screenshots, sanitized router details, and safe external-scan fixtures can be used when real home-network evidence should not be shown.

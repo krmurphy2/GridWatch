@@ -101,7 +101,7 @@ flowchart TD
     UI[Web UI: dashboard and chat]
     Upload[Router screenshots and setup details]
     API[Vercel server actions and API routes]
-    DB[Vercel Postgres]
+    DB[Neon serverless Postgres]
     Extract[Hosted router extraction graph]
     Agent[LangGraph agent]
     Gateway[LLM gateway]
@@ -147,7 +147,7 @@ flowchart TD
 | Evaluation framework | RAGAS plus custom LLM-as-judge checks | Covers retrieval quality, grounded answers, and safety behavior. |
 | User interface | Browser dashboard and chat | Meets the phone/laptop browser requirement. |
 | Deployment | Vercel frontend/API plus hosted LangGraph deployment | Avoids local installation for MVP while keeping AI/security tokens server-side. |
-| Memory | HTTP-only sessions plus Vercel Postgres assessment memory | Stores the first user, sessions, extracted router facts, scan approval, and retained uploads. |
+| Memory | HTTP-only sessions plus Neon serverless Postgres assessment memory | Stores users, sessions, extracted router facts, scan approval, and retained uploads. |
 
 ### Agent Workflow
 

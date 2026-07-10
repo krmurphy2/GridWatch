@@ -24,10 +24,19 @@ type LocalRouterProfile = RouterProfile & {
   imageBase64: string;
 };
 
+type LocalChatMessage = {
+  id: string;
+  userId: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+};
+
 type LocalData = {
   users: LocalUser[];
   sessions: LocalSession[];
   routerProfiles: LocalRouterProfile[];
+  chatMessages: LocalChatMessage[];
 };
 
 type SaveRouterProfileInput = {
@@ -44,7 +53,8 @@ type SaveRouterProfileInput = {
 const defaultData: LocalData = {
   users: [],
   sessions: [],
-  routerProfiles: []
+  routerProfiles: [],
+  chatMessages: []
 };
 
 function getLocalDataPath() {
@@ -60,7 +70,8 @@ async function readLocalData(): Promise<LocalData> {
     return {
       users: parsed.users ?? [],
       sessions: parsed.sessions ?? [],
-      routerProfiles: parsed.routerProfiles ?? []
+      routerProfiles: parsed.routerProfiles ?? [],
+      chatMessages: parsed.chatMessages ?? []
     };
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
@@ -186,6 +197,84 @@ export async function localGetLatestRouterProfile(userId: string) {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
   return latestProfile ? toRouterProfile(latestProfile) : null;
+}
+
+export async function localUpdateRouterProfile(
+  userId: string,
+  profileId: string,
+  extraction: RouterExtraction,
+  missingFields: string[]
+) {
+  const data = await readLocalData();
+  const index = data.routerProfiles.findIndex(
+    (profile) => profile.id === profileId && profile.userId === userId
+  );
+
+  if (index === -1) {
+    throw new Error("Router profile not found for this user.");
+  }
+
+  const existing = data.routerProfiles[index];
+  const updated: LocalRouterProfile = {
+    ...existing,
+    routerVendor: extraction.routerVendor,
+    routerModel: extraction.routerModel,
+    hardwareVersion: extraction.hardwareVersion,
+    firmwareVersion: extraction.firmwareVersion,
+    publicIp: extraction.publicIp,
+    routerAdminUrl: extraction.routerAdminUrl,
+    upnpStatus: extraction.upnpStatus,
+    remoteAdminStatus: extraction.remoteAdminStatus,
+    portForwardingStatus: extraction.portForwardingStatus,
+    wifiSecurity: extraction.wifiSecurity,
+    extraction,
+    missingFields
+  };
+
+  const routerProfiles = [...data.routerProfiles];
+  routerProfiles[index] = updated;
+  await writeLocalData({ ...data, routerProfiles });
+
+  return toRouterProfile(updated);
+}
+
+export async function localGetChatMessages(userId: string) {
+  const data = await readLocalData();
+  return data.chatMessages
+    .filter((message) => message.userId === userId)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt
+    }));
+}
+
+export async function localAppendChatMessage(input: {
+  userId: string;
+  role: "user" | "assistant";
+  content: string;
+}) {
+  const data = await readLocalData();
+  const message: LocalChatMessage = {
+    id: randomUUID(),
+    userId: input.userId,
+    role: input.role,
+    content: input.content,
+    createdAt: new Date().toISOString()
+  };
+
+  await writeLocalData({ ...data, chatMessages: [...data.chatMessages, message] });
+  return { id: message.id, role: message.role, content: message.content, createdAt: message.createdAt };
+}
+
+export async function localClearChatMessages(userId: string) {
+  const data = await readLocalData();
+  await writeLocalData({
+    ...data,
+    chatMessages: data.chatMessages.filter((message) => message.userId !== userId)
+  });
 }
 
 export async function localSaveRouterProfile(input: SaveRouterProfileInput) {

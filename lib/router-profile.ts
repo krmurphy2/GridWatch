@@ -1,11 +1,64 @@
 import { randomUUID } from "node:crypto";
-import { sql } from "@vercel/postgres";
+import { sql } from "./db-client";
 import { ensureSchema } from "./db";
-import { localGetLatestRouterProfile, localSaveRouterProfile } from "./local-store";
+import { isValidPublicIp } from "./ip";
+import {
+  localGetLatestRouterProfile,
+  localSaveRouterProfile,
+  localUpdateRouterProfile
+} from "./local-store";
 import type { RouterExtraction, RouterProfile } from "./types";
+
+// Fields a user is allowed to fill in or correct manually from the dashboard.
+export const editableProfileFields = [
+  "routerVendor",
+  "routerModel",
+  "hardwareVersion",
+  "firmwareVersion",
+  "publicIp",
+  "routerAdminUrl",
+  "upnpStatus",
+  "remoteAdminStatus",
+  "portForwardingStatus",
+  "wifiSecurity"
+] as const;
+
+export type EditableProfileField = (typeof editableProfileFields)[number];
+export type RouterProfileUpdates = Partial<Record<EditableProfileField, string | null>>;
+
+// Fields that count as "missing evidence" when empty.
+const missingCandidateFields: EditableProfileField[] = [
+  "routerVendor",
+  "routerModel",
+  "firmwareVersion",
+  "publicIp",
+  "upnpStatus",
+  "remoteAdminStatus",
+  "portForwardingStatus",
+  "wifiSecurity"
+];
 
 function useLocalFileDb() {
   return process.env.USE_LOCAL_FILE_DB === "true";
+}
+
+// Merge manual updates into the existing extraction and recompute missing fields.
+// Empty/blank values clear the field back to null.
+function applyProfileUpdates(current: RouterProfile, updates: RouterProfileUpdates) {
+  const extraction: RouterExtraction = { ...current.extraction };
+
+  for (const field of editableProfileFields) {
+    if (field in updates) {
+      const raw = updates[field];
+      const value = typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : null;
+      extraction[field] = value;
+    }
+  }
+
+  const missingFields = missingCandidateFields.filter((field) => !extraction[field]);
+  extraction.missingFields = missingFields;
+
+  return { extraction, missingFields };
 }
 
 function parseJsonValue<T>(value: unknown, fallback: T): T {
@@ -148,4 +201,48 @@ export async function saveRouterProfile(input: {
   `;
 
   return getLatestRouterProfile(input.userId);
+}
+
+// Apply user-entered corrections/fills to their most recent router profile.
+// All access is scoped by userId so one user can never edit another's data.
+export async function updateRouterProfile(userId: string, updates: RouterProfileUpdates) {
+  const current = await getLatestRouterProfile(userId);
+
+  if (!current) {
+    throw new Error("Add router evidence before completing the profile details.");
+  }
+
+  if ("publicIp" in updates) {
+    const ip = updates.publicIp?.trim();
+    if (ip && !isValidPublicIp(ip)) {
+      throw new Error("Enter a valid public IP address (not a private or local range).");
+    }
+  }
+
+  const { extraction, missingFields } = applyProfileUpdates(current, updates);
+
+  if (useLocalFileDb()) {
+    return localUpdateRouterProfile(userId, current.id, extraction, missingFields);
+  }
+
+  await ensureSchema();
+
+  await sql`
+    update router_profiles set
+      router_vendor = ${extraction.routerVendor},
+      router_model = ${extraction.routerModel},
+      hardware_version = ${extraction.hardwareVersion},
+      firmware_version = ${extraction.firmwareVersion},
+      public_ip = ${extraction.publicIp},
+      router_admin_url = ${extraction.routerAdminUrl},
+      upnp_status = ${extraction.upnpStatus},
+      remote_admin_status = ${extraction.remoteAdminStatus},
+      port_forwarding_status = ${extraction.portForwardingStatus},
+      wifi_security = ${extraction.wifiSecurity},
+      extraction_json = ${JSON.stringify(extraction)}::jsonb,
+      missing_fields = ${JSON.stringify(missingFields)}::jsonb
+    where id = ${current.id} and user_id = ${userId}
+  `;
+
+  return getLatestRouterProfile(userId);
 }
