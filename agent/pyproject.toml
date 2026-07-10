@@ -11,4 +11,4 @@ dependencies = [
 ]
 
 [tool.setuptools]
-py-modules = ["router_extraction"]
+py-modules = ["router_extraction", "security_chat"]

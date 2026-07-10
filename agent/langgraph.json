@@ -1,7 +1,8 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "router_extraction": "./router_extraction.py:graph"
+    "router_extraction": "./router_extraction.py:graph",
+    "security_chat": "./security_chat.py:graph"
   },
   "env": ".env"
 }

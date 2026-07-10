@@ -62,5 +62,20 @@ export async function ensureSchema() {
     )
   `;
 
+  await sql`
+    create table if not exists chat_messages (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      role text not null,
+      content text not null,
+      created_at timestamptz not null default now()
+    )
+  `;
+
+  await sql`
+    create index if not exists chat_messages_user_created_idx
+      on chat_messages (user_id, created_at)
+  `;
+
   schemaReady = true;
 }

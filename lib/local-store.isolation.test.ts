@@ -159,4 +159,27 @@ describe("local store per-user isolation", () => {
       /valid public IP/i
     );
   });
+
+  it("keeps each user's chat history isolated", async () => {
+    const { appendChatMessage, getChatMessages } = await import("./chat");
+
+    process.env.USE_LOCAL_FILE_DB = "true";
+    const userD = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+    const userE = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+
+    await appendChatMessage(userD, "user", "Is UPnP safe to leave on?");
+    await appendChatMessage(userD, "assistant", "Generally disable UPnP unless a device needs it.");
+    await appendChatMessage(userE, "user", "What is WPA3?");
+
+    const historyD = await getChatMessages(userD);
+    const historyE = await getChatMessages(userE);
+
+    expect(historyD).toHaveLength(2);
+    expect(historyD.every((m) => m.content.includes("WPA3") === false)).toBe(true);
+    expect(historyD[0].role).toBe("user");
+    expect(historyD[1].role).toBe("assistant");
+
+    expect(historyE).toHaveLength(1);
+    expect(historyE[0].content).toBe("What is WPA3?");
+  });
 });

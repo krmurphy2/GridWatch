@@ -140,6 +140,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
             <p className="muted">Signed in as {user.email}</p>
           </div>
           <div className="header-actions">
+            <Link className="secondary-button" href="/chat">
+              Ask the assistant
+            </Link>
             <Link className="secondary-button" href="/setup">
               Add more evidence
             </Link>
