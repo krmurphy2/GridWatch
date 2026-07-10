@@ -13,12 +13,12 @@ Browser
   -> Vercel Next.js app
       -> server actions/API code
       -> Neon serverless Postgres for user/session/router profile data
-      -> hosted LangGraph router extraction agent
-          -> Anthropic vision-capable model
+      -> hosted LangGraph agent (router extraction + security chat)
+          -> OpenAI vision-capable model (gpt-5.1)
       -> LangSmith tracing/evaluation
 ```
 
-The browser never calls Anthropic, LangGraph, LangSmith, Shodan, Tavily, or other
+The browser never calls OpenAI, LangGraph, LangSmith, Shodan, Tavily, or other
 security APIs directly. All credentials stay in server-side environment variables.
 
 ## Vercel Frontend/API
@@ -71,27 +71,29 @@ The agent lives in `agent/`.
 Required agent environment variables:
 
 ```bash
-ANTHROPIC_API_KEY="your-anthropic-api-key"
+OPENAI_API_KEY="your-openai-api-key"
 LANGSMITH_API_KEY="your-langsmith-api-key"
 LANGSMITH_TRACING="true"
 LANGSMITH_PROJECT="gridwatch-router-extraction"
-ANTHROPIC_MODEL="claude-3-5-sonnet-20241022"
+OPENAI_MODEL="gpt-5.1"
 ```
 
-The graph entry is defined in `agent/langgraph.json`:
+The graph entries are defined in `agent/langgraph.json`:
 
 ```json
 {
   "graphs": {
-    "router_extraction": "./router_extraction.py:graph"
+    "router_extraction": "./router_extraction.py:graph",
+    "security_chat": "./security_chat.py:graph"
   }
 }
 ```
 
-Deploy this graph through the LangGraph/LangSmith deployment flow from the course,
-then copy the deployment URL/API key into the Vercel environment variables. The
-Vercel client accepts either the base deployment URL or a full `/runs/wait` URL and
-normalizes base deployment URLs to `/runs/wait` before invoking the graph.
+Deploy these graphs through the LangGraph/LangSmith deployment flow, then copy the
+deployment URL/API key into the Vercel environment variables. The Vercel client
+accepts either the base deployment URL or a full `/runs/wait` URL and normalizes
+base deployment URLs to `/runs/wait` before invoking a graph. `router_extraction`
+powers screenshot extraction; `security_chat` powers the per-user security chat.
 
 ## Data Retention Notes
 
@@ -105,6 +107,6 @@ retention policy.
 1. Never prefix secrets with `NEXT_PUBLIC_`.
 2. Do not commit `.env` files.
 3. Rotate the first-user setup token after account creation.
-4. Keep LangGraph, Anthropic, LangSmith, and database tokens server-side only.
+4. Keep LangGraph, OpenAI, LangSmith, and database tokens server-side only.
 5. Do not enable active scans until verified public-IP target validation is in
    place.
