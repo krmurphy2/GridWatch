@@ -45,8 +45,13 @@ export default async function SetupPage({ searchParams }: { searchParams: { upda
                   Upload screenshots from your router admin pages. Useful pages include status, firmware, internet/WAN, firewall, remote administration, UPnP, and port forwarding.
                 </p>
                 <label className="field">
-                  <span>Router admin screenshot</span>
-                  <input name="routerImage" type="file" accept="image/*" required />
+                  <span>Router admin screenshots</span>
+                  <input name="routerImage" type="file" accept="image/*" multiple required />
+                  <small className="muted">
+                    Select up to 6 images at once. If your details are spread across several
+                    router pages, add a screenshot of each &mdash; we&apos;ll combine them into one
+                    profile.
+                  </small>
                 </label>
                 <label className="field">
                   <span>Extra notes</span>
@@ -124,7 +129,7 @@ function MissingFields({ profile }: { profile: Awaited<ReturnType<typeof getLate
       <div className="card-inner stack">
         <div>
           <p className="eyebrow">Next evidence needed</p>
-          <h2>Missing from image</h2>
+          <h2>Missing from evidence</h2>
         </div>
         {profile.missingFields.length > 0 ? (
           <ul className="result-list">

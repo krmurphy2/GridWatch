@@ -22,8 +22,10 @@ export function getClientPublicIpSuggestion(): string | null {
   }
 
   for (const candidate of candidates) {
-    // Strip IPv6 brackets and any ":port" suffix on IPv4 candidates.
-    const cleaned = candidate.replace(/^\[|\]$/g, "").replace(/^(\d+\.\d+\.\d+\.\d+):\d+$/, "$1");
+    const cleaned = candidate
+      .replace(/^\[|\]$/g, "") // strip IPv6 brackets
+      .replace(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/, "$1") // strip ":port" on IPv4
+      .replace(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i, "$1"); // unwrap IPv4-mapped IPv6
     if (isValidPublicIp(cleaned)) {
       return cleaned;
     }
