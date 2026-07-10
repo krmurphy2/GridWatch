@@ -17,3 +17,6 @@ __pycache__/
 .DS_Store
 .devcontainer/
 TestExamples/
+agent/.langgraph_api/
+*.egg-info/
+tsconfig.tsbuildinfo
