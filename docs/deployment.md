@@ -12,7 +12,7 @@ LangSmith/LangGraph Platform.
 Browser
   -> Vercel Next.js app
       -> server actions/API code
-      -> Vercel Postgres for user/session/router profile data
+      -> Neon serverless Postgres for user/session/router profile data
       -> hosted LangGraph router extraction agent
           -> Anthropic vision-capable model
       -> LangSmith tracing/evaluation
@@ -29,7 +29,7 @@ The Vercel app provides:
 2. Password sign-in with HTTP-only session cookies.
 3. No public signup after the first user exists.
 4. Router screenshot upload.
-5. Router profile persistence in Vercel Postgres.
+5. Router profile persistence in Neon serverless Postgres.
 6. Scan approval capture before future public-IP exposure checks.
 7. Server-side calls to the hosted router extraction agent.
 8. `GET /api/health` for deployment health checks.
@@ -38,7 +38,7 @@ The Vercel app provides:
 Required Vercel environment variables:
 
 ```bash
-POSTGRES_URL="postgres://USER:PASSWORD@HOST:PORT/DATABASE"
+DATABASE_URL="postgres://USER:PASSWORD@HOST/DATABASE?sslmode=require"
 FIRST_USER_SETUP_TOKEN="generate-a-one-time-setup-token"
 LANGGRAPH_DEPLOYMENT_URL="https://your-langgraph-deployment-url"
 LANGGRAPH_API_KEY="your-langgraph-api-key"
@@ -46,7 +46,7 @@ LANGGRAPH_ASSISTANT_ID="router_extraction"
 USE_MOCK_AGENT="false"
 ```
 
-For local development without Vercel Postgres or the hosted agent, use the file-backed local setup in `docs/local_development.md`. The short version is:
+For local development without Neon Postgres or the hosted agent, use the file-backed local setup in `docs/local_development.md`. The short version is:
 
 ```bash
 npm install
@@ -94,7 +94,7 @@ normalizes base deployment URLs to `/runs/wait` before invoking the graph.
 
 ## Data Retention Notes
 
-This first version stores uploaded image base64 data in Vercel Postgres to satisfy
+This first version stores uploaded image base64 data in Neon serverless Postgres to satisfy
 "save and retain all data" for the prototype. Before using real user data beyond
 this controlled MVP, replace that with private object storage and a documented
 retention policy.

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
-import { sql } from "@vercel/postgres";
+import { sql } from "./db-client";
 import { ensureSchema } from "./db";
 import {
   localCreateSession,

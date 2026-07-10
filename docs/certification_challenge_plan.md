@@ -75,7 +75,7 @@ for scan restrictions and data handling boundaries.
 | Evaluation framework | RAGAS plus custom LLM-as-judge checks | `docs/evaluation_plan.md` |
 | User interface | Browser-based dashboard/chat for laptop and phone | `docs/architecture.md` |
 | Deployment | Vercel frontend/API plus hosted LangGraph deployment; no local scanner required for MVP | `docs/architecture.md` |
-| Memory | HTTP-only sessions plus Vercel Postgres assessment memory | `docs/architecture.md` |
+| Memory | HTTP-only sessions plus Neon serverless Postgres assessment memory | `docs/architecture.md` |
 
 ## Task 3: Dealing with the Data
 

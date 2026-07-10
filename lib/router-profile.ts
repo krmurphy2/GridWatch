@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { sql } from "@vercel/postgres";
+import { sql } from "./db-client";
 import { ensureSchema } from "./db";
 import { localGetLatestRouterProfile, localSaveRouterProfile } from "./local-store";
 import type { RouterExtraction, RouterProfile } from "./types";
