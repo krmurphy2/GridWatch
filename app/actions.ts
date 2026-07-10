@@ -2,7 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { createUser, signIn, signOut, requireUser, getCurrentUser } from "@/lib/auth";
-import { getLatestRouterProfile } from "@/lib/router-profile";
+import {
+  editableProfileFields,
+  getLatestRouterProfile,
+  updateRouterProfile,
+  type RouterProfileUpdates
+} from "@/lib/router-profile";
 import { processRouterSetup } from "@/lib/router-setup";
 
 // Returns /dashboard when the signed-in user already has a saved router profile,
@@ -80,5 +85,29 @@ export async function signOutAction() {
 export async function saveRouterSetupAction(formData: FormData) {
   const user = await requireUser();
   await processRouterSetup(formData, user.id);
+  redirect("/dashboard?updated=1");
+}
+
+export type ProfileEditState = { error?: string };
+
+export async function updateRouterProfileAction(
+  _prevState: ProfileEditState,
+  formData: FormData
+): Promise<ProfileEditState> {
+  const user = await requireUser();
+
+  try {
+    const updates: RouterProfileUpdates = {};
+
+    for (const field of editableProfileFields) {
+      const value = formData.get(field);
+      updates[field] = typeof value === "string" ? value : null;
+    }
+
+    await updateRouterProfile(user.id, updates);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not update the profile." };
+  }
+
   redirect("/dashboard?updated=1");
 }

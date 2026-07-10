@@ -1,21 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
+import { getClientPublicIpSuggestion } from "@/lib/client-ip";
 import { getLatestRouterProfile } from "@/lib/router-profile";
 import type { RouterProfile } from "@/lib/types";
 import { signOutAction } from "../actions";
-
-const importantFields = [
-  ["routerVendor", "Router vendor"],
-  ["routerModel", "Router model"],
-  ["hardwareVersion", "Hardware version"],
-  ["firmwareVersion", "Firmware version"],
-  ["publicIp", "Public IP"],
-  ["upnpStatus", "UPnP status"],
-  ["remoteAdminStatus", "Remote admin status"],
-  ["portForwardingStatus", "Port forwarding"],
-  ["wifiSecurity", "Wi-Fi security"]
-] as const;
+import { ProfileEditForm } from "./profile-edit-form";
 
 type PostureLevel = "good" | "attention" | "unknown";
 type Finding = { label: string; level: PostureLevel; detail: string };
@@ -137,6 +127,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   const attentionCount = findings.filter((finding) => finding.level === "attention").length;
   const unknownCount = findings.filter((finding) => finding.level === "unknown").length;
 
+  // Only suggest a browser-derived public IP when the profile doesn't have one.
+  const publicIpSuggestion = profile.publicIp ? null : getClientPublicIpSuggestion();
+
   return (
     <main className="page-shell">
       <div className="container">
@@ -194,25 +187,35 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
             <div className="card-inner stack">
               <div>
                 <p className="eyebrow">Saved profile</p>
-                <h2>Extracted data</h2>
-                <p className="muted">Latest upload: {profile.imageName ?? "unknown file"}</p>
+                <h2>Router details</h2>
+                <p className="muted">
+                  Review and complete anything the extractor couldn&apos;t read from your upload
+                  ({profile.imageName ?? "unknown file"}).
+                </p>
               </div>
-              <ul className="result-list">
-                {importantFields.map(([key, label]) => (
-                  <li className="label-value" key={key}>
-                    <b>{label}</b>
-                    <span>{profile[key] ?? "Missing"}</span>
-                  </li>
-                ))}
-                <li className="label-value">
-                  <b>Scan approved</b>
-                  <span>
-                    {profile.scanApproved
-                      ? `Yes${profile.scanTargetIp ? ` for ${profile.scanTargetIp}` : ""}`
-                      : "No"}
-                  </span>
-                </li>
-              </ul>
+              <ProfileEditForm
+                values={{
+                  routerVendor: profile.routerVendor,
+                  routerModel: profile.routerModel,
+                  hardwareVersion: profile.hardwareVersion,
+                  firmwareVersion: profile.firmwareVersion,
+                  publicIp: profile.publicIp,
+                  routerAdminUrl: profile.routerAdminUrl,
+                  upnpStatus: profile.upnpStatus,
+                  remoteAdminStatus: profile.remoteAdminStatus,
+                  portForwardingStatus: profile.portForwardingStatus,
+                  wifiSecurity: profile.wifiSecurity
+                }}
+                publicIpSuggestion={publicIpSuggestion}
+              />
+              <div className="label-value">
+                <b>Scan approved</b>
+                <span>
+                  {profile.scanApproved
+                    ? `Yes${profile.scanTargetIp ? ` for ${profile.scanTargetIp}` : ""}`
+                    : "No"}
+                </span>
+              </div>
             </div>
           </section>
 

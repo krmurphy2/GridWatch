@@ -188,6 +188,45 @@ export async function localGetLatestRouterProfile(userId: string) {
   return latestProfile ? toRouterProfile(latestProfile) : null;
 }
 
+export async function localUpdateRouterProfile(
+  userId: string,
+  profileId: string,
+  extraction: RouterExtraction,
+  missingFields: string[]
+) {
+  const data = await readLocalData();
+  const index = data.routerProfiles.findIndex(
+    (profile) => profile.id === profileId && profile.userId === userId
+  );
+
+  if (index === -1) {
+    throw new Error("Router profile not found for this user.");
+  }
+
+  const existing = data.routerProfiles[index];
+  const updated: LocalRouterProfile = {
+    ...existing,
+    routerVendor: extraction.routerVendor,
+    routerModel: extraction.routerModel,
+    hardwareVersion: extraction.hardwareVersion,
+    firmwareVersion: extraction.firmwareVersion,
+    publicIp: extraction.publicIp,
+    routerAdminUrl: extraction.routerAdminUrl,
+    upnpStatus: extraction.upnpStatus,
+    remoteAdminStatus: extraction.remoteAdminStatus,
+    portForwardingStatus: extraction.portForwardingStatus,
+    wifiSecurity: extraction.wifiSecurity,
+    extraction,
+    missingFields
+  };
+
+  const routerProfiles = [...data.routerProfiles];
+  routerProfiles[index] = updated;
+  await writeLocalData({ ...data, routerProfiles });
+
+  return toRouterProfile(updated);
+}
+
 export async function localSaveRouterProfile(input: SaveRouterProfileInput) {
   const data = await readLocalData();
   const profile: LocalRouterProfile = {

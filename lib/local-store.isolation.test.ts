@@ -87,4 +87,76 @@ describe("local store per-user isolation", () => {
     const unknownUser = "99999999-9999-9999-9999-999999999999";
     expect(await localGetLatestRouterProfile(unknownUser)).toBeNull();
   });
+
+  it("applies a scoped manual update and does not touch another user's profile", async () => {
+    const { localSaveRouterProfile, localGetLatestRouterProfile } = await import("./local-store");
+    const { updateRouterProfile } = await import("./router-profile");
+
+    process.env.USE_LOCAL_FILE_DB = "true";
+
+    const userA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    const userB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+
+    await localSaveRouterProfile({
+      userId: userA,
+      extraction: extraction({ routerVendor: "Netgear", missingFields: ["firmwareVersion", "publicIp"] }),
+      scanApproved: false,
+      scanTargetIp: null,
+      imageName: "a.png",
+      imageMime: "image/png",
+      imageSize: 10,
+      imageBase64: "AAAA"
+    });
+
+    await localSaveRouterProfile({
+      userId: userB,
+      extraction: extraction({ routerVendor: "Asus" }),
+      scanApproved: false,
+      scanTargetIp: null,
+      imageName: "b.png",
+      imageMime: "image/png",
+      imageSize: 10,
+      imageBase64: "BBBB"
+    });
+
+    const updated = await updateRouterProfile(userA, {
+      firmwareVersion: "1.0.9",
+      publicIp: "93.184.216.34"
+    });
+
+    // User A's manual fills are saved and drop out of missingFields.
+    expect(updated?.firmwareVersion).toBe("1.0.9");
+    expect(updated?.publicIp).toBe("93.184.216.34");
+    expect(updated?.missingFields).not.toContain("firmwareVersion");
+    expect(updated?.missingFields).not.toContain("publicIp");
+
+    // User B is completely unaffected.
+    const profileB = await localGetLatestRouterProfile(userB);
+    expect(profileB?.routerVendor).toBe("Asus");
+    expect(profileB?.firmwareVersion).toBeNull();
+    expect(profileB?.publicIp).toBeNull();
+  });
+
+  it("rejects an invalid (private) public IP on manual update", async () => {
+    const { localSaveRouterProfile } = await import("./local-store");
+    const { updateRouterProfile } = await import("./router-profile");
+
+    process.env.USE_LOCAL_FILE_DB = "true";
+    const userC = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+
+    await localSaveRouterProfile({
+      userId: userC,
+      extraction: extraction({ routerVendor: "TP-Link" }),
+      scanApproved: false,
+      scanTargetIp: null,
+      imageName: "c.png",
+      imageMime: "image/png",
+      imageSize: 10,
+      imageBase64: "CCCC"
+    });
+
+    await expect(updateRouterProfile(userC, { publicIp: "192.168.1.1" })).rejects.toThrow(
+      /valid public IP/i
+    );
+  });
 });
