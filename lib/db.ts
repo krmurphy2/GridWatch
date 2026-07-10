@@ -13,15 +13,17 @@ export async function ensureSchema() {
       email text not null unique,
       password_hash text not null,
       password_salt text not null,
-      singleton boolean not null default true,
-      created_at timestamptz not null default now(),
-      constraint users_singleton_true check (singleton)
+      created_at timestamptz not null default now()
     )
   `;
 
-  await sql`
-    create unique index if not exists users_singleton_idx on users ((true))
-  `;
+  // Migrate away from the original single-user model: earlier versions enforced
+  // exactly one user via a check constraint, a unique index on ((true)), and a
+  // singleton column. These are dropped idempotently so existing deployments can
+  // support multiple token-gated users.
+  await sql`drop index if exists users_singleton_idx`;
+  await sql`alter table users drop constraint if exists users_singleton_true`;
+  await sql`alter table users drop column if exists singleton`;
 
   await sql`
     create table if not exists sessions (
