@@ -125,13 +125,16 @@ export async function getChatReply(input: ChatReplyInput): Promise<string> {
     throw new Error("A userId is required to namespace the chat request.");
   }
 
-  if (!process.env.LANGGRAPH_API_KEY) {
+  const apiKey = process.env.LANGGRAPH_API_KEY;
+
+  if (!apiKey) {
     throw new Error("LANGGRAPH_API_KEY is not configured.");
   }
 
+  // LangGraph Platform authenticates via the x-api-key header, not Bearer.
   const headers = {
     "content-type": "application/json",
-    authorization: `Bearer ${process.env.LANGGRAPH_API_KEY}`
+    "x-api-key": apiKey
   };
   const namespace = agentNamespace(input.userId);
   const threadId = chatThreadId(input.userId);
