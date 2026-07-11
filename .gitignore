@@ -20,3 +20,4 @@ TestExamples/
 agent/.langgraph_api/
 *.egg-info/
 tsconfig.tsbuildinfo
+.neon

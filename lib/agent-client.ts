@@ -106,13 +106,18 @@ export async function extractRouterDetails(input: ExtractRouterInput, userId: st
     throw new Error("A userId is required to namespace the agent request.");
   }
 
-  if (!process.env.LANGGRAPH_API_KEY) {
+  const apiKey = process.env.LANGGRAPH_API_KEY;
+
+  if (!apiKey) {
     throw new Error("LANGGRAPH_API_KEY is not configured.");
   }
 
+  // LangGraph Platform authenticates via the x-api-key header. (The local
+  // `langgraph dev` server ignores auth, which is why Bearer "worked" in dev but
+  // the hosted deployment returns 403 "Invalid token".)
   const headers = {
     "content-type": "application/json",
-    authorization: `Bearer ${process.env.LANGGRAPH_API_KEY}`
+    "x-api-key": apiKey
   };
   const namespace = agentNamespace(userId);
   const threadId = agentThreadId(userId);
