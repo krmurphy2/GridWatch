@@ -45,7 +45,14 @@ LANGGRAPH_API_KEY="your-langgraph-api-key"
 LANGGRAPH_ASSISTANT_ID="router_extraction"
 LANGGRAPH_CHAT_ASSISTANT_ID="security_chat"
 USE_MOCK_AGENT="false"
+# Optional: raises NIST NVD rate limits for CVE lookups (works without a key).
+NVD_API_KEY="your-nvd-api-key"
 ```
+
+The CVE lookup (NIST NVD) and passive exposure (Shodan InternetDB) checks are
+read-only and free. `NVD_API_KEY` is optional and only raises NVD rate limits;
+InternetDB requires no key. Passive intelligence only queries the user's verified
+public IP — private/LAN addresses are never sent to third parties.
 
 For local development without Neon Postgres or the hosted agent, use the file-backed local setup in `docs/local_development.md`. The short version is:
 
