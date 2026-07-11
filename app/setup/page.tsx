@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getLatestRouterProfile } from "@/lib/router-profile";
 import { saveRouterSetupAction, signOutAction } from "../actions";
@@ -26,10 +27,16 @@ export default async function SetupPage({ searchParams }: { searchParams: { upda
           <div>
             <p className="eyebrow">Information gathering</p>
             <h1>Router setup</h1>
+            <p className="muted">Signed in as {user.email}</p>
           </div>
-          <form action={signOutAction}>
-            <button className="secondary-button" type="submit">Sign out</button>
-          </form>
+          <div className="header-actions">
+            <Link className="secondary-button" href="/dashboard">
+              Dashboard
+            </Link>
+            <form action={signOutAction}>
+              <button className="secondary-button" type="submit">Sign out</button>
+            </form>
+          </div>
         </div>
 
         {searchParams.updated === "1" ? (
