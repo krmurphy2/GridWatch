@@ -240,6 +240,20 @@ textarea {
   margin: 4px 0 0;
 }
 
+/* Plain-English "why it matters" note under a finding — subtler than the detail
+   and set off with a thin accent border so it reads as supporting context. */
+.finding .why {
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(148, 163, 184, 0.3);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.finding .why b {
+  color: #cbd5e1;
+}
+
 .badge {
   flex: 0 0 auto;
   border-radius: 999px;
