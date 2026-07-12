@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getClientPublicIpSuggestion } from "@/lib/client-ip";
 import { getLatestRouterProfile } from "@/lib/router-profile";
-import type { RouterProfile } from "@/lib/types";
+import { getSecurityFindings } from "@/lib/security-findings";
+import type { AssessmentAction, CveFinding, FindingsAssessment, RouterProfile, SecurityFindings } from "@/lib/types";
 import { signOutAction } from "../actions";
 import { ProfileEditForm } from "./profile-edit-form";
+import { SecurityChecksForm } from "./security-checks-form";
 
 type PostureLevel = "good" | "attention" | "unknown";
 type Finding = { label: string; level: PostureLevel; detail: string };
@@ -113,6 +115,160 @@ const levelLabel: Record<PostureLevel, string> = {
   unknown: "Unknown"
 };
 
+// Map a CVSS base score / NVD severity string to one of our posture levels so
+// CVEs render with the same visual language as the rest of the dashboard.
+function cveLevel(finding: CveFinding): PostureLevel {
+  const severity = finding.severity?.toUpperCase();
+  if (severity === "CRITICAL" || severity === "HIGH") return "attention";
+  if ((finding.cvssScore ?? 0) >= 7) return "attention";
+  if (severity === "MEDIUM" || (finding.cvssScore ?? 0) >= 4) return "unknown";
+  return "good";
+}
+
+function formatCheckedAt(iso: string) {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "unknown time" : date.toLocaleString();
+}
+
+const riskLabel: Record<FindingsAssessment["riskLevel"], string> = {
+  high: "High risk",
+  medium: "Medium risk",
+  low: "Low risk"
+};
+
+const priorityLabel: Record<AssessmentAction["priority"], string> = {
+  high: "Do first",
+  medium: "Next",
+  low: "When you can"
+};
+
+// The plain-English assessment users read first. Raw CVE/exposure data stays
+// available underneath in a collapsed section for anyone who wants the detail.
+function AssessmentSummary({ assessment }: { assessment: FindingsAssessment }) {
+  return (
+    <div className="assessment stack">
+      <div className="assessment-head">
+        <span className={`badge badge-risk-${assessment.riskLevel}`}>{riskLabel[assessment.riskLevel]}</span>
+        <h3>{assessment.headline}</h3>
+      </div>
+      <p>{assessment.summary}</p>
+      <ul className="finding-list">
+        {assessment.actions.map((action) => (
+          <li className="finding" key={action.title}>
+            <span className={`badge badge-risk-${action.priority}`}>{priorityLabel[action.priority]}</span>
+            <div>
+              <b>{action.title}</b>
+              <p className="muted">{action.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {assessment.source === "heuristic" ? (
+        <p className="muted">
+          This summary was generated locally from the raw results. Connect the GridWatch agent for a
+          richer, AI-written explanation.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function SecurityChecksCard({ findings }: { findings: SecurityFindings | null }) {
+  return (
+    <section className="card">
+      <div className="card-inner stack">
+        <div>
+          <p className="eyebrow">Vulnerability &amp; exposure</p>
+          <h2>External security checks</h2>
+          <p className="muted">
+            Read-only lookups using your saved router model and verified public IP. We query NIST NVD for
+            known vulnerabilities and Shodan InternetDB for what public scanners already see. Nothing is
+            actively scanned.
+          </p>
+        </div>
+
+        <SecurityChecksForm hasResults={findings !== null} />
+
+        {findings ? (
+          <p className="muted">Last checked {formatCheckedAt(findings.checkedAt)}.</p>
+        ) : (
+          <p className="muted">No checks have been run yet.</p>
+        )}
+
+        {findings?.assessment ? <AssessmentSummary assessment={findings.assessment} /> : null}
+
+        {findings ? (
+          <details className="tech-details">
+            <summary>See full technical details</summary>
+            <div className="stack">
+            <div>
+              <b>Known vulnerabilities (NVD)</b>
+              {findings.cve.query ? (
+                <p className="muted">Matched against &quot;{findings.cve.query}&quot;.</p>
+              ) : null}
+              {findings.cve.note ? <p className="muted">{findings.cve.note}</p> : null}
+              {findings.cve.results.length > 0 ? (
+                <ul className="finding-list">
+                  {findings.cve.results.map((cve) => {
+                    const level = cveLevel(cve);
+                    return (
+                      <li className="finding" key={cve.id}>
+                        <span className={`badge badge-${level}`}>
+                          {cve.severity ?? (cve.cvssScore !== null ? String(cve.cvssScore) : "N/A")}
+                        </span>
+                        <div>
+                          <b>
+                            <a href={cve.url} target="_blank" rel="noreferrer noopener">
+                              {cve.id}
+                            </a>
+                            {cve.cvssScore !== null ? ` — CVSS ${cve.cvssScore}` : ""}
+                          </b>
+                          <p className="muted">{cve.description}</p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </div>
+
+            <div>
+              <b>Passive internet exposure (InternetDB)</b>
+              {findings.passive.note ? <p className="muted">{findings.passive.note}</p> : null}
+              {findings.passive.exposure && findings.passive.exposure.found ? (
+                <ul className="result-list">
+                  <li>
+                    <b>Open ports:</b>{" "}
+                    {findings.passive.exposure.ports.length > 0
+                      ? findings.passive.exposure.ports.join(", ")
+                      : "none observed"}
+                  </li>
+                  {findings.passive.exposure.hostnames.length > 0 ? (
+                    <li>
+                      <b>Hostnames:</b> {findings.passive.exposure.hostnames.join(", ")}
+                    </li>
+                  ) : null}
+                  {findings.passive.exposure.tags.length > 0 ? (
+                    <li>
+                      <b>Tags:</b> {findings.passive.exposure.tags.join(", ")}
+                    </li>
+                  ) : null}
+                  {findings.passive.exposure.vulns.length > 0 ? (
+                    <li>
+                      <b>Flagged CVEs:</b> {findings.passive.exposure.vulns.join(", ")}
+                    </li>
+                  ) : null}
+                </ul>
+              ) : null}
+            </div>
+            </div>
+          </details>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export default async function DashboardPage({ searchParams }: { searchParams: { updated?: string } }) {
   const user = await requireUser();
   const profile = await getLatestRouterProfile(user.id);
@@ -126,6 +282,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   const findings = buildPosture(profile);
   const attentionCount = findings.filter((finding) => finding.level === "attention").length;
   const unknownCount = findings.filter((finding) => finding.level === "unknown").length;
+  const securityFindings = await getSecurityFindings(user.id);
 
   // Only suggest a browser-derived public IP when the profile doesn't have one.
   const publicIpSuggestion = profile.publicIp ? null : getClientPublicIpSuggestion();
@@ -184,6 +341,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
             </ul>
           </div>
         </section>
+
+        <SecurityChecksCard findings={securityFindings} />
 
         <div className="two-column">
           <section className="card">

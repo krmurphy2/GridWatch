@@ -17,12 +17,21 @@ import {
   getChatMessages
 } from "@/lib/chat";
 import { getChatReply } from "@/lib/chat-client";
+import { lookupRouterCves } from "@/lib/nvd";
+import { lookupPassiveExposure } from "@/lib/internetdb";
+import { getSecurityFindings, saveSecurityFindings } from "@/lib/security-findings";
+import { buildHeuristicAssessment } from "@/lib/findings-summary";
+import { getFindingsAssessment } from "@/lib/findings-summary-client";
+import type { SecurityFindings } from "@/lib/types";
 
 const maxChatMessageLength = 2000;
 const chatHistoryLimit = 20;
 // Per-user rate limit on the paid LLM chat endpoint to prevent cost abuse.
 const chatRateLimitWindowMs = 60_000;
 const chatRateLimitMax = 15;
+// Rate limit external security checks (NVD/InternetDB) per user to respect
+// upstream free-tier limits and prevent abuse.
+const securityChecksCooldownMs = 20_000;
 
 // Returns /dashboard when the signed-in user already has a saved router profile,
 // otherwise /setup so they can capture their first piece of evidence.
@@ -151,6 +160,64 @@ export async function clearChatAction() {
   const user = await requireUser();
   await clearChatMessages(user.id);
   revalidatePath("/chat");
+}
+
+export type SecurityChecksState = { error?: string; ok?: boolean };
+
+// Run the read-only external security checks (NVD CVE lookup + InternetDB passive
+// exposure) for the signed-in user's router facts, persist the results, and
+// refresh the dashboard. Both lookups only use the user's own vendor/model and
+// verified public IP; private/LAN addresses are never sent to third parties.
+export async function runSecurityChecksAction(
+  _prevState: SecurityChecksState,
+  _formData: FormData
+): Promise<SecurityChecksState> {
+  const user = await requireUser();
+
+  try {
+    const profile = await getLatestRouterProfile(user.id);
+
+    if (!profile) {
+      return { error: "Add router evidence before running security checks." };
+    }
+
+    const existing = await getSecurityFindings(user.id);
+    if (existing && Date.now() - new Date(existing.checkedAt).getTime() < securityChecksCooldownMs) {
+      return { error: "Checks were just run. Please wait a few seconds before retrying." };
+    }
+
+    const scanIp = profile.publicIp ?? profile.scanTargetIp;
+
+    const [cve, passive] = await Promise.all([
+      lookupRouterCves({ routerVendor: profile.routerVendor, routerModel: profile.routerModel }),
+      lookupPassiveExposure(scanIp)
+    ]);
+
+    const summaryInput = {
+      profile,
+      cve: { query: cve.query, results: cve.results, note: cve.note },
+      passive: { exposure: passive.exposure, note: passive.note }
+    };
+
+    // Deterministic assessment always available; the LLM improves on it when the
+    // agent is reachable, otherwise we keep the heuristic (never blocks the scan).
+    const heuristic = buildHeuristicAssessment(summaryInput);
+    const assessment = (await getFindingsAssessment(summaryInput, user.id, heuristic)) ?? heuristic;
+
+    const findings: SecurityFindings = {
+      cve: summaryInput.cve,
+      passive: summaryInput.passive,
+      assessment,
+      checkedAt: new Date().toISOString()
+    };
+
+    await saveSecurityFindings(user.id, findings);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not run security checks." };
+  }
+
+  revalidatePath("/dashboard");
+  return { ok: true };
 }
 
 export type ProfileEditState = { error?: string; ok?: boolean };

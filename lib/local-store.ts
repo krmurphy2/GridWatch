@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { RouterExtraction, RouterProfile } from "./types";
+import type { RouterExtraction, RouterProfile, SecurityFindings } from "./types";
 
 type LocalUser = {
   id: string;
@@ -32,11 +32,17 @@ type LocalChatMessage = {
   createdAt: string;
 };
 
+type LocalSecurityFindings = {
+  userId: string;
+  findings: SecurityFindings;
+};
+
 type LocalData = {
   users: LocalUser[];
   sessions: LocalSession[];
   routerProfiles: LocalRouterProfile[];
   chatMessages: LocalChatMessage[];
+  securityFindings: LocalSecurityFindings[];
 };
 
 type SaveRouterProfileInput = {
@@ -54,7 +60,8 @@ const defaultData: LocalData = {
   users: [],
   sessions: [],
   routerProfiles: [],
-  chatMessages: []
+  chatMessages: [],
+  securityFindings: []
 };
 
 function getLocalDataPath() {
@@ -71,7 +78,8 @@ async function readLocalData(): Promise<LocalData> {
       users: parsed.users ?? [],
       sessions: parsed.sessions ?? [],
       routerProfiles: parsed.routerProfiles ?? [],
-      chatMessages: parsed.chatMessages ?? []
+      chatMessages: parsed.chatMessages ?? [],
+      securityFindings: parsed.securityFindings ?? []
     };
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
@@ -274,6 +282,20 @@ export async function localClearChatMessages(userId: string) {
   await writeLocalData({
     ...data,
     chatMessages: data.chatMessages.filter((message) => message.userId !== userId)
+  });
+}
+
+export async function localGetSecurityFindings(userId: string) {
+  const data = await readLocalData();
+  return data.securityFindings.find((entry) => entry.userId === userId)?.findings ?? null;
+}
+
+export async function localSaveSecurityFindings(userId: string, findings: SecurityFindings) {
+  const data = await readLocalData();
+  const others = data.securityFindings.filter((entry) => entry.userId !== userId);
+  await writeLocalData({
+    ...data,
+    securityFindings: [...others, { userId, findings }]
   });
 }
 

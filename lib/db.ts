@@ -77,5 +77,15 @@ export async function ensureSchema() {
       on chat_messages (user_id, created_at)
   `;
 
+  // Latest CVE + passive-intel results per user (assessment memory). One row per
+  // user; re-running the checks upserts in place.
+  await sql`
+    create table if not exists security_findings (
+      user_id text primary key references users(id) on delete cascade,
+      findings jsonb not null,
+      checked_at timestamptz not null default now()
+    )
+  `;
+
   schemaReady = true;
 }

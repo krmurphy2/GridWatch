@@ -44,8 +44,16 @@ LANGGRAPH_DEPLOYMENT_URL="https://your-langgraph-deployment-url"
 LANGGRAPH_API_KEY="your-langgraph-api-key"
 LANGGRAPH_ASSISTANT_ID="router_extraction"
 LANGGRAPH_CHAT_ASSISTANT_ID="security_chat"
+LANGGRAPH_SUMMARY_ASSISTANT_ID="findings_summary"
 USE_MOCK_AGENT="false"
+# Optional: raises NIST NVD rate limits for CVE lookups (works without a key).
+NVD_API_KEY="your-nvd-api-key"
 ```
+
+The CVE lookup (NIST NVD) and passive exposure (Shodan InternetDB) checks are
+read-only and free. `NVD_API_KEY` is optional and only raises NVD rate limits;
+InternetDB requires no key. Passive intelligence only queries the user's verified
+public IP — private/LAN addresses are never sent to third parties.
 
 For local development without Neon Postgres or the hosted agent, use the file-backed local setup in `docs/local_development.md`. The short version is:
 
@@ -84,7 +92,8 @@ The graph entries are defined in `agent/langgraph.json`:
 {
   "graphs": {
     "router_extraction": "./router_extraction.py:graph",
-    "security_chat": "./security_chat.py:graph"
+    "security_chat": "./security_chat.py:graph",
+    "findings_summary": "./findings_summary.py:graph"
   }
 }
 ```
@@ -93,7 +102,10 @@ Deploy these graphs through the LangGraph/LangSmith deployment flow, then copy t
 deployment URL/API key into the Vercel environment variables. The Vercel client
 accepts either the base deployment URL or a full `/runs/wait` URL and normalizes
 base deployment URLs to `/runs/wait` before invoking a graph. `router_extraction`
-powers screenshot extraction; `security_chat` powers the per-user security chat.
+powers screenshot extraction; `security_chat` powers the per-user security chat;
+`findings_summary` turns the raw CVE/exposure results into a plain-English
+assessment. If `findings_summary` is not deployed, the app falls back to a
+deterministic on-server heuristic summary, so the dashboard still works.
 
 ## Data Retention Notes
 
