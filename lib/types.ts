@@ -36,6 +36,24 @@ export type PassiveExposure = {
   vulns: string[];
 };
 
+// A single prioritized, plain-English recommendation for the user.
+export type AssessmentAction = {
+  title: string;
+  detail: string;
+  priority: "high" | "medium" | "low";
+};
+
+// Plain-English interpretation of the raw findings, produced by the LLM after a
+// scan (with a deterministic heuristic fallback). This is what non-technical
+// users read first; the raw CVE/exposure data stays available underneath.
+export type FindingsAssessment = {
+  headline: string;
+  riskLevel: "low" | "medium" | "high";
+  summary: string;
+  actions: AssessmentAction[];
+  source: "llm" | "heuristic";
+};
+
 // Latest CVE + passive-intel results for a user, retained as assessment memory.
 export type SecurityFindings = {
   cve: {
@@ -47,6 +65,7 @@ export type SecurityFindings = {
     exposure: PassiveExposure | null;
     note: string | null;
   };
+  assessment: FindingsAssessment | null;
   checkedAt: string;
 };
 

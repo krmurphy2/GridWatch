@@ -20,6 +20,8 @@ import { getChatReply } from "@/lib/chat-client";
 import { lookupRouterCves } from "@/lib/nvd";
 import { lookupPassiveExposure } from "@/lib/internetdb";
 import { getSecurityFindings, saveSecurityFindings } from "@/lib/security-findings";
+import { buildHeuristicAssessment } from "@/lib/findings-summary";
+import { getFindingsAssessment } from "@/lib/findings-summary-client";
 import type { SecurityFindings } from "@/lib/types";
 
 const maxChatMessageLength = 2000;
@@ -191,9 +193,21 @@ export async function runSecurityChecksAction(
       lookupPassiveExposure(scanIp)
     ]);
 
-    const findings: SecurityFindings = {
+    const summaryInput = {
+      profile,
       cve: { query: cve.query, results: cve.results, note: cve.note },
-      passive: { exposure: passive.exposure, note: passive.note },
+      passive: { exposure: passive.exposure, note: passive.note }
+    };
+
+    // Deterministic assessment always available; the LLM improves on it when the
+    // agent is reachable, otherwise we keep the heuristic (never blocks the scan).
+    const heuristic = buildHeuristicAssessment(summaryInput);
+    const assessment = (await getFindingsAssessment(summaryInput, user.id, heuristic)) ?? heuristic;
+
+    const findings: SecurityFindings = {
+      cve: summaryInput.cve,
+      passive: summaryInput.passive,
+      assessment,
       checkedAt: new Date().toISOString()
     };
 

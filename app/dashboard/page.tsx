@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { getClientPublicIpSuggestion } from "@/lib/client-ip";
 import { getLatestRouterProfile } from "@/lib/router-profile";
 import { getSecurityFindings } from "@/lib/security-findings";
-import type { CveFinding, RouterProfile, SecurityFindings } from "@/lib/types";
+import type { AssessmentAction, CveFinding, FindingsAssessment, RouterProfile, SecurityFindings } from "@/lib/types";
 import { signOutAction } from "../actions";
 import { ProfileEditForm } from "./profile-edit-form";
 import { SecurityChecksForm } from "./security-checks-form";
@@ -130,6 +130,49 @@ function formatCheckedAt(iso: string) {
   return Number.isNaN(date.getTime()) ? "unknown time" : date.toLocaleString();
 }
 
+const riskLabel: Record<FindingsAssessment["riskLevel"], string> = {
+  high: "High risk",
+  medium: "Medium risk",
+  low: "Low risk"
+};
+
+const priorityLabel: Record<AssessmentAction["priority"], string> = {
+  high: "Do first",
+  medium: "Next",
+  low: "When you can"
+};
+
+// The plain-English assessment users read first. Raw CVE/exposure data stays
+// available underneath in a collapsed section for anyone who wants the detail.
+function AssessmentSummary({ assessment }: { assessment: FindingsAssessment }) {
+  return (
+    <div className="assessment stack">
+      <div className="assessment-head">
+        <span className={`badge badge-risk-${assessment.riskLevel}`}>{riskLabel[assessment.riskLevel]}</span>
+        <h3>{assessment.headline}</h3>
+      </div>
+      <p>{assessment.summary}</p>
+      <ul className="finding-list">
+        {assessment.actions.map((action) => (
+          <li className="finding" key={action.title}>
+            <span className={`badge badge-risk-${action.priority}`}>{priorityLabel[action.priority]}</span>
+            <div>
+              <b>{action.title}</b>
+              <p className="muted">{action.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {assessment.source === "heuristic" ? (
+        <p className="muted">
+          This summary was generated locally from the raw results. Connect the GridWatch agent for a
+          richer, AI-written explanation.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function SecurityChecksCard({ findings }: { findings: SecurityFindings | null }) {
   return (
     <section className="card">
@@ -152,8 +195,12 @@ function SecurityChecksCard({ findings }: { findings: SecurityFindings | null })
           <p className="muted">No checks have been run yet.</p>
         )}
 
+        {findings?.assessment ? <AssessmentSummary assessment={findings.assessment} /> : null}
+
         {findings ? (
-          <div className="stack">
+          <details className="tech-details">
+            <summary>See full technical details</summary>
+            <div className="stack">
             <div>
               <b>Known vulnerabilities (NVD)</b>
               {findings.cve.query ? (
@@ -214,7 +261,8 @@ function SecurityChecksCard({ findings }: { findings: SecurityFindings | null })
                 </ul>
               ) : null}
             </div>
-          </div>
+            </div>
+          </details>
         ) : null}
       </div>
     </section>
