@@ -10,7 +10,9 @@ import { ProfileEditForm } from "./profile-edit-form";
 import { SecurityChecksForm } from "./security-checks-form";
 
 type PostureLevel = "good" | "attention" | "unknown";
-type Finding = { label: string; level: PostureLevel; detail: string };
+// `detail` says what we saw and what to do; `why` is a plain-English reason the
+// setting matters, so a non-technical user understands the stakes, not just the verdict.
+type Finding = { label: string; level: PostureLevel; detail: string; why: string };
 
 function contains(value: string | null, needles: string[]) {
   if (!value) return false;
@@ -21,88 +23,126 @@ function contains(value: string | null, needles: string[]) {
 function toggleFinding(
   label: string,
   value: string | null,
-  { riskyWhenOn, offDetail, onDetail, unknownDetail }: {
+  { riskyWhenOn, why, offDetail, onDetail, unknownDetail }: {
     riskyWhenOn: boolean;
+    why: string;
     offDetail: string;
     onDetail: string;
     unknownDetail: string;
   }
 ): Finding {
   if (!value) {
-    return { label, level: "unknown", detail: unknownDetail };
+    return { label, level: "unknown", detail: unknownDetail, why };
   }
 
   const isOff = contains(value, ["disable", "off", "not "]);
   const isOn = !isOff && contains(value, ["enable", "active", "on"]);
 
   if (isOff) {
-    return { label, level: riskyWhenOn ? "good" : "attention", detail: offDetail };
+    return { label, level: riskyWhenOn ? "good" : "attention", detail: offDetail, why };
   }
 
   if (isOn) {
-    return { label, level: riskyWhenOn ? "attention" : "good", detail: onDetail };
+    return { label, level: riskyWhenOn ? "attention" : "good", detail: onDetail, why };
   }
 
-  return { label, level: "unknown", detail: `Captured as "${value}". ${unknownDetail}` };
+  return {
+    label,
+    level: "unknown",
+    detail: `We saw "${value}" but couldn't tell whether it's on or off. ${unknownDetail}`,
+    why
+  };
 }
 
 function buildPosture(profile: RouterProfile): Finding[] {
   const findings: Finding[] = [];
 
   findings.push(
-    toggleFinding("UPnP", profile.upnpStatus, {
+    toggleFinding("Automatic port opening (UPnP)", profile.upnpStatus, {
       riskyWhenOn: true,
-      onDetail: "UPnP appears enabled. It can silently open inbound ports — disable it unless a device truly needs it.",
-      offDetail: "UPnP appears disabled, which reduces the risk of silently opened ports.",
-      unknownDetail: "Capture the UPnP setting so exposure from auto-opened ports can be assessed."
+      why: "UPnP lets devices open doors to the internet by themselves, without asking you. It's convenient, but something can end up exposed without your knowledge.",
+      onDetail: "This is turned on. Unless a specific device (like a game console) really needs it, it's safer to switch it off in your router settings.",
+      offDetail: "This is turned off — good. Devices can't quietly open your network to the internet.",
+      unknownDetail: "Add a screenshot of the page that shows UPnP so we can check it."
     })
   );
 
   findings.push(
-    toggleFinding("Remote administration", profile.remoteAdminStatus, {
+    toggleFinding("Remote access to router settings", profile.remoteAdminStatus, {
       riskyWhenOn: true,
-      onDetail: "Remote admin appears enabled. This exposes the router's admin interface to the internet — disable it unless required.",
-      offDetail: "Remote admin appears disabled, keeping the admin interface off the public internet.",
-      unknownDetail: "Capture the remote administration setting; if enabled it is a common attack surface."
+      why: "This controls whether your router's settings page can be opened from anywhere on the internet, not just from home. If it's on, strangers can try to log in and guess your password.",
+      onDetail: "This is on, so your router's control panel can be reached from the internet. Unless you specifically need it, turn it off.",
+      offDetail: "This is off — good. Your settings can only be changed from inside your home network.",
+      unknownDetail: "This is a common way routers get attacked, so it's worth adding a screenshot of that setting."
     })
   );
 
   findings.push(
-    toggleFinding("Port forwarding", profile.portForwardingStatus, {
+    toggleFinding("Port forwarding rules", profile.portForwardingStatus, {
       riskyWhenOn: true,
-      onDetail: "Port forwarding rules appear active. Review each rule and remove any that are no longer needed.",
-      offDetail: "No active port forwarding was detected.",
-      unknownDetail: "Capture the port forwarding page to review any inbound rules."
+      why: "Port forwarding deliberately opens a specific door from the internet to one device at home — often set up for cameras or game servers. Old or forgotten rules can leave a device exposed.",
+      onDetail: "One or more of these doors are open. Take a quick look and remove any you don't recognize or no longer use.",
+      offDetail: "No open doors were found — nothing extra is exposed to the internet here.",
+      unknownDetail: "Add a screenshot of that page so we can check for anything left open."
     })
   );
+
+  const wifiWhy =
+    'This is the type of lock on your Wi-Fi. Newer locks (WPA2 and WPA3) are very hard to break; older ones (WEP or "open") can let neighbors or passersby onto your network.';
 
   if (!profile.wifiSecurity) {
     findings.push({
-      label: "Wi-Fi security",
+      label: "Wi-Fi password protection",
       level: "unknown",
-      detail: "Capture the wireless security mode so weak encryption can be flagged."
+      detail: "We don't know what Wi-Fi protection you're using yet. Add a screenshot of your wireless security page so we can check it.",
+      why: wifiWhy
     });
   } else if (contains(profile.wifiSecurity, ["wpa3"])) {
-    findings.push({ label: "Wi-Fi security", level: "good", detail: `Strong Wi-Fi encryption detected (${profile.wifiSecurity}).` });
+    findings.push({
+      label: "Wi-Fi password protection",
+      level: "good",
+      detail: `You're using WPA3 (${profile.wifiSecurity}), the strongest Wi-Fi protection available. Nothing to do here.`,
+      why: wifiWhy
+    });
   } else if (contains(profile.wifiSecurity, ["wpa2"])) {
-    findings.push({ label: "Wi-Fi security", level: "good", detail: `Modern Wi-Fi encryption detected (${profile.wifiSecurity}). WPA3 is stronger if your devices support it.` });
+    findings.push({
+      label: "Wi-Fi password protection",
+      level: "good",
+      detail: `You're using WPA2 (${profile.wifiSecurity}), which is strong and safe. If all your devices support WPA3, switching to it is an easy upgrade.`,
+      why: wifiWhy
+    });
   } else if (contains(profile.wifiSecurity, ["wep", "open", "none", "wpa "])) {
-    findings.push({ label: "Wi-Fi security", level: "attention", detail: `Weak or open Wi-Fi encryption detected (${profile.wifiSecurity}). Move to WPA2 or WPA3.` });
+    findings.push({
+      label: "Wi-Fi password protection",
+      level: "attention",
+      detail: `Your Wi-Fi is using older, weak protection (${profile.wifiSecurity}). Change it to WPA2 or WPA3 in your router settings so others can't easily join your network.`,
+      why: wifiWhy
+    });
   } else {
-    findings.push({ label: "Wi-Fi security", level: "unknown", detail: `Captured as "${profile.wifiSecurity}". Confirm it is WPA2 or WPA3.` });
+    findings.push({
+      label: "Wi-Fi password protection",
+      level: "unknown",
+      detail: `We saw "${profile.wifiSecurity}" but couldn't tell how strong it is. Aim for WPA2 or WPA3.`,
+      why: wifiWhy
+    });
   }
+
+  const firmwareWhy =
+    "Firmware is the software that runs your router. Just like a phone, updates fix security holes — running an old version leaves known problems unpatched.";
 
   if (profile.firmwareVersion) {
     findings.push({
-      label: "Firmware",
+      label: "Router software (firmware)",
       level: "unknown",
-      detail: `Firmware ${profile.firmwareVersion} captured. Check the vendor site for a newer release and known advisories.`
+      detail: `You're on version ${profile.firmwareVersion}. Check your router's admin page or the maker's website for a newer version and install it if one is available.`,
+      why: firmwareWhy
     });
   } else {
     findings.push({
-      label: "Firmware",
+      label: "Router software (firmware)",
       level: "unknown",
-      detail: "Capture the firmware version so it can be checked against known vulnerabilities."
+      detail: "We don't know your firmware version yet. Add a screenshot of the page that shows it so we can check whether it's up to date.",
+      why: firmwareWhy
     });
   }
 
@@ -111,8 +151,8 @@ function buildPosture(profile: RouterProfile): Finding[] {
 
 const levelLabel: Record<PostureLevel, string> = {
   good: "OK",
-  attention: "Attention",
-  unknown: "Unknown"
+  attention: "Action",
+  unknown: "Not checked"
 };
 
 // Map a CVSS base score / NVD severity string to one of our posture levels so
@@ -316,16 +356,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
         <section className="card">
           <div className="card-inner stack">
             <div>
-              <p className="eyebrow">Posture summary</p>
+              <p className="eyebrow">Your router settings</p>
               <h2>
                 {attentionCount > 0
-                  ? `${attentionCount} item${attentionCount > 1 ? "s" : ""} need attention`
-                  : "No high-risk settings flagged"}
+                  ? `${attentionCount} setting${attentionCount > 1 ? "s" : ""} worth changing`
+                  : "Your main settings look safe"}
               </h2>
               <p className="muted">
+                This is based on the router screenshots you uploaded. Here is what each important
+                setting means and why it matters.
                 {unknownCount > 0
-                  ? `${unknownCount} setting${unknownCount > 1 ? "s are" : " is"} not captured yet. Add more router screenshots to complete the picture.`
-                  : "All monitored settings were captured from your router evidence."}
+                  ? ` We couldn't read ${unknownCount} of them yet — add more screenshots to complete the picture.`
+                  : " We were able to check every setting we look for."}
               </p>
             </div>
             <ul className="finding-list">
@@ -335,6 +377,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
                   <div>
                     <b>{finding.label}</b>
                     <p className="muted">{finding.detail}</p>
+                    <p className="why">
+                      <b>Why it matters:</b> {finding.why}
+                    </p>
                   </div>
                 </li>
               ))}
