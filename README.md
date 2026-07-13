@@ -142,7 +142,7 @@ flowchart TD
 | Agent orchestration | LangGraph | Makes tool routing, approval gates, and agent state explicit. |
 | Tools | Screenshot extraction, exposure scan, passive intelligence, NVD, Tavily, RAG retriever | Matches the external-first MVP workflow. |
 | Embedding model | To be finalized during implementation | Should be chosen based on retrieval quality, cost, and latency. |
-| Vector database | ChromaDB for prototype | Simple local/prototype vector store with low setup overhead. |
+| Vector database | Qdrant (Qdrant Cloud free tier) | Managed store for the deployed prototype; chosen for time efficiency given existing familiarity with the Qdrant API (see `docs/rag_scoping.md`). |
 | Monitoring | LangSmith for the hosted graph; Langfuse remains optional later | Tracks traces, evaluations, latency, prompts, and tool behavior. |
 | Evaluation framework | RAGAS plus custom LLM-as-judge checks | Covers retrieval quality, grounded answers, and safety behavior. |
 | User interface | Browser dashboard and chat | Meets the phone/laptop browser requirement. |

@@ -5,6 +5,22 @@
 This document supports Task 3 by turning likely user questions into feature-level
 RAG and tool requirements. It should be updated as the project scope changes.
 
+## Vector Store and Embedding Choice
+
+- **Vector store:** Qdrant, hosted on **Qdrant Cloud (free tier)** for the deployed
+  prototype. In-memory Qdrant (`location=":memory:"`) is kept for local development
+  and the evaluation notebooks, so the same `langchain-qdrant` API is used in both.
+- **Embedding model:** OpenAI `text-embedding-3-small`.
+- **Why Qdrant Cloud (free tier):** The challenge does not mandate a specific vector
+  database — Task 2 only requires naming one as a component, and Task 4 requires a
+  "production-grade stack" deployed to a public endpoint. A managed store satisfies
+  that without re-embedding the corpus on every cold start. We chose the Qdrant Cloud
+  free tier specifically **because of time restrictions**: we were already comfortable
+  with the Qdrant API from in-memory use in the course, so the identical API behind a
+  hosted URL + key is the lowest-friction managed option and keeps the project moving.
+  A self-hosted or higher-tier deployment was deliberately deferred. This supersedes
+  the earlier "ChromaDB for prototype" note in the planning docs.
+
 ## How To Use This Exercise
 
 For each feature, decide:

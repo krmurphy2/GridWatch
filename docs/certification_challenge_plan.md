@@ -70,7 +70,7 @@ for scan restrictions and data handling boundaries.
 | Agent orchestration | LangGraph | `docs/architecture.md` |
 | Tools | Screenshot/evidence extractor, external exposure scan, passive intelligence, NVD CVE lookup, RAG retriever, Tavily search | `docs/architecture.md` |
 | Embedding model | To be finalized during data scoping | `docs/data_strategy.md` |
-| Vector database | ChromaDB for prototype | `docs/data_strategy.md` |
+| Vector database | Qdrant Cloud (free tier) | `docs/rag_scoping.md` |
 | Monitoring | LangSmith for the hosted graph; Langfuse remains optional later | `docs/evaluation_plan.md` |
 | Evaluation framework | RAGAS plus custom LLM-as-judge checks | `docs/evaluation_plan.md` |
 | User interface | Browser-based dashboard/chat for laptop and phone | `docs/architecture.md` |
