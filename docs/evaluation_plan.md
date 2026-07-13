@@ -18,9 +18,11 @@ production so the numbers reflect the shipped pipeline.
   set from the corpus (single- and multi-hop), saved locally for a human-review
   gate, then `--push` uploads the reviewed set to a **LangSmith dataset**.
 - **`run_eval.py`** — runs the RAG pipeline over each question (capturing retrieved
-  contexts + answer) and scores the batch with Ragas collections metrics via an
+  contexts + answer) and scores it with Ragas collections metrics via an
   instructor-backed LLM (reliable structured output): **Faithfulness**,
-  **Context Recall**, **Answer Accuracy**. Writes `artifacts/results.csv` + `results.md`.
+  **Context Recall**, **Answer Accuracy**. Default mode runs a `langsmith.aevaluate`
+  experiment so scores show in the **LangSmith UI** (dataset → Experiments);
+  `--local` scores the local testset and writes `artifacts/results.csv` + `results.md`.
 - Both default to `gpt-5.1`; model calls use `max_completion_tokens` (gpt-5.x
   requirement). See `eval/README.md` for commands.
 
