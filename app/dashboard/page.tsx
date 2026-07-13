@@ -185,6 +185,11 @@ const priorityLabel: Record<AssessmentAction["priority"], string> = {
 // The plain-English assessment users read first. Raw CVE/exposure data stays
 // available underneath in a collapsed section for anyone who wants the detail.
 function AssessmentSummary({ assessment }: { assessment: FindingsAssessment }) {
+  // Findings persisted before newer fields existed may lack `sources` (and, defensively,
+  // `actions`). Default them so a legacy row can't crash the server-rendered dashboard.
+  const actions = assessment.actions ?? [];
+  const sources = assessment.sources ?? [];
+
   return (
     <div className="assessment stack">
       <div className="assessment-head">
@@ -193,7 +198,7 @@ function AssessmentSummary({ assessment }: { assessment: FindingsAssessment }) {
       </div>
       <p>{assessment.summary}</p>
       <ul className="finding-list">
-        {assessment.actions.map((action) => (
+        {actions.map((action) => (
           <li className="finding" key={action.title}>
             <span className={`badge badge-risk-${action.priority}`}>{priorityLabel[action.priority]}</span>
             <div>
@@ -203,8 +208,8 @@ function AssessmentSummary({ assessment }: { assessment: FindingsAssessment }) {
           </li>
         ))}
       </ul>
-      {assessment.sources.length > 0 ? (
-        <p className="muted">Based on GridWatch guidance: {assessment.sources.join(", ")}.</p>
+      {sources.length > 0 ? (
+        <p className="muted">Based on GridWatch guidance: {sources.join(", ")}.</p>
       ) : null}
       {assessment.source === "heuristic" ? (
         <p className="muted">

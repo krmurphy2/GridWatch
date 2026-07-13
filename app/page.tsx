@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { SignInForm, SignUpForm } from "./auth-forms";
+import { signOutAction } from "./actions";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
@@ -40,6 +41,9 @@ export default async function HomePage() {
                 <Link className="primary-button" href="/dashboard">
                   Open security dashboard
                 </Link>
+                <form action={signOutAction}>
+                  <button className="secondary-button" type="submit">Sign out</button>
+                </form>
               </div>
             ) : (
               <div className="stack">
