@@ -24,6 +24,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
 from llm import get_chat_model
+from rag import format_context, retrieve, sources_from
 
 
 class AssessmentAction(BaseModel):
@@ -142,15 +143,41 @@ def _describe_findings(state: FindingsSummaryState) -> str:
     return "\n".join(lines)
 
 
-def _build_prompt(state: FindingsSummaryState) -> str:
+def _retrieval_query(state: FindingsSummaryState) -> str:
+    """Build a retrieval query from the findings so guidance is relevant to them."""
+    profile = state.get("profile") or {}
+    cve = state.get("cve") or {}
+    passive = state.get("passive") or {}
+
+    parts = [f"{_router_label(profile)} home network security remediation"]
+    for item in (cve.get("results") or [])[:3]:
+        description = item.get("description")
+        if description:
+            parts.append(str(description)[:160])
+    exposure = passive.get("exposure")
+    if exposure and exposure.get("found"):
+        ports = exposure.get("ports") or []
+        if ports:
+            parts.append("exposed ports " + ", ".join(str(p) for p in ports[:8]))
+    return " ; ".join(parts)
+
+
+def _build_prompt(state: FindingsSummaryState, guidance: str = "") -> str:
     baseline = state.get("baseline")
     baseline_json = json.dumps(baseline, indent=2) if baseline else "None"
+    guidance_block = (
+        "\n\nTRUSTED GUIDANCE (ground your remediation in this; it is authoritative):\n"
+        f"{guidance}"
+        if guidance
+        else ""
+    )
 
     return f"""
 Explain the security findings below to a non-technical home-network owner.
 
 FINDINGS:
 {_describe_findings(state)}
+{guidance_block}
 
 A deterministic baseline assessment has already been computed from the same data:
 {baseline_json}
@@ -178,6 +205,8 @@ Rules:
   or risky internet-facing services, "low" if nothing needs attention.
 - If nothing needs fixing, say so plainly and give one gentle upkeep action.
 - Do not invent findings that are not in the data above.
+- When TRUSTED GUIDANCE is provided, base your remediation steps on it rather than
+  on memory. Keep the plain language — do not print [Source N] labels in the output.
 - Never ask for or reveal passwords or Wi-Fi passphrases.
 """.strip()
 
@@ -188,19 +217,30 @@ def summarize(
     """Produce a plain-English assessment JSON from the raw findings."""
     _, namespace = _resolve_namespace(config)
 
+    # Deterministic RAG: retrieve guidance relevant to these findings, ground the
+    # summary in it, and record which sources informed the answer for display.
+    results = retrieve(_retrieval_query(state))
+    guidance = format_context(results)
+    sources = sources_from(results)
+
     llm = get_chat_model(temperature=0.3, max_tokens=900)
 
     response = llm.invoke(
         [
             SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=_build_prompt(state)),
+            HumanMessage(content=_build_prompt(state, guidance)),
         ]
     )
 
     parsed = json.loads(_strip_json_fence(_extract_text(response.content)))
     assessment = FindingsAssessment.model_validate(parsed)
 
-    return {**state, "output": assessment.model_dump(), "namespace": namespace}
+    # sources is deterministic (from retrieval), not model-generated, so it is
+    # attached to the output rather than being part of the validated model.
+    output = assessment.model_dump()
+    output["sources"] = sources
+
+    return {**state, "output": output, "namespace": namespace}
 
 
 builder = StateGraph(FindingsSummaryState)

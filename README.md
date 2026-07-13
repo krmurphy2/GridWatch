@@ -196,15 +196,16 @@ More detail: [Architecture](docs/architecture.md) and
 
 ### Default Chunking Strategy
 
-The initial RAG corpus will use recursive character splitting with semantic
-boundary awareness. The starting chunk size is approximately 512 tokens with
-approximately 64 tokens of overlap.
+The RAG corpus uses recursive character splitting with markdown-aware boundaries
+(`RecursiveCharacterTextSplitter`, `chunk_size=900`, `chunk_overlap=120`, splitting
+on headings and paragraphs first). See `agent/rag.py`.
 
 This is a practical default for security guidance because the source material is
-usually organized by short sections, checklists, definitions, and remediation
-steps. The chunk size is large enough to preserve context but small enough to
-retrieve targeted passages for specific router settings, ports, protocols, CVEs,
-or remediation questions.
+organized by short sections, checklists, definitions, and remediation steps.
+Breaking on `##`/`###` headings keeps each chunk topically coherent, and the size
+is large enough to preserve a full recommendation while small enough to retrieve
+targeted passages for specific router settings, ports, protocols, CVEs, or
+remediation questions.
 
 ### Data Sources
 

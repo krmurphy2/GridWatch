@@ -203,6 +203,9 @@ function AssessmentSummary({ assessment }: { assessment: FindingsAssessment }) {
           </li>
         ))}
       </ul>
+      {assessment.sources.length > 0 ? (
+        <p className="muted">Based on GridWatch guidance: {assessment.sources.join(", ")}.</p>
+      ) : null}
       {assessment.source === "heuristic" ? (
         <p className="muted">
           This summary was generated locally from the raw results. Connect the GridWatch agent for a

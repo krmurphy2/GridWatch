@@ -136,7 +136,7 @@ export function buildHeuristicAssessment(input: SummaryInput): FindingsAssessmen
       "Keep your firmware up to date and check back periodically.";
   }
 
-  return { headline, riskLevel, summary, actions, source: "heuristic" };
+  return { headline, riskLevel, summary, actions, source: "heuristic", sources: [] };
 }
 
 const PRIORITIES = new Set(["high", "medium", "low"]);
@@ -185,11 +185,16 @@ export function parseAssessment(value: unknown): FindingsAssessment | null {
     return null;
   }
 
+  const sources = Array.isArray(raw.sources)
+    ? raw.sources.filter((item): item is string => typeof item === "string")
+    : [];
+
   return {
     headline,
     summary,
     riskLevel: riskLevel as FindingsAssessment["riskLevel"],
     actions,
-    source: "llm"
+    source: "llm",
+    sources
   };
 }
