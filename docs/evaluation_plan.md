@@ -6,6 +6,41 @@ This document supports Task 5 and Task 6 by defining the evaluation dataset,
 harness, metrics, baseline, improvement comparison, and conclusions needed for
 the Certification Challenge.
 
+## Implemented Harness (`eval/`)
+
+The RAG evaluation lives in a **separate uv project** under `eval/`, isolated from
+the deployed `agent/` because Ragas's dependency pins (e.g. `langchain-community==0.3.31`)
+conflict with the agent's LangChain 1.x stack. It reuses the same corpus
+(`agent/corpus/*.md`) and the same chunking/embedding/retrieval settings as
+production so the numbers reflect the shipped pipeline.
+
+- **`generate_dataset.py`** — Ragas `TestsetGenerator` builds a synthetic question
+  set from the corpus (single- and multi-hop), saved locally for a human-review
+  gate, then `--push` uploads the reviewed set to a **LangSmith dataset**.
+- **`run_eval.py`** — runs the RAG pipeline over each question (capturing retrieved
+  contexts + answer) and scores the batch with Ragas collections metrics via an
+  instructor-backed LLM (reliable structured output): **Faithfulness**,
+  **Context Recall**, **Answer Accuracy**. Writes `artifacts/results.csv` + `results.md`.
+- Both default to `gpt-5.1`; model calls use `max_completion_tokens` (gpt-5.x
+  requirement). See `eval/README.md` for commands.
+
+## First Baseline (initial dense-retrieval run)
+
+Captured on a small synthetic set as a smoke of the harness (grow the set for the
+formal baseline):
+
+| Metric | Mean |
+| --- | --- |
+| Faithfulness | 0.44 |
+| Context Recall | 1.00 |
+| Answer Accuracy | 0.88 |
+
+Early read: retrieval reliably surfaces the needed guidance (high recall), but
+**faithfulness is low** — answers include statements not tightly grounded in the
+retrieved context. That is the primary target for the Task 6 improvement work
+(advanced retrieval and/or a stricter answer prompt), and the harness will show
+whether a change moves it.
+
 ## Evaluation Goals
 
 The evaluation harness should measure whether the assistant:
