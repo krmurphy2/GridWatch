@@ -125,45 +125,70 @@ async def score_local(samples: list) -> list:
     return rows
 
 
-def run_local() -> None:
-    cases = load_cases_local()
-    print(f"Evaluating {len(cases)} cases locally...")
-    answer = build_rag()
+METRIC_COLS = ["faithfulness", "context_recall", "answer_accuracy"]
+
+
+def _score_cases(cases: list, mode: str):
+    """Run the RAG pipeline (in the given retrieval mode) over cases and score it."""
+    answer = build_rag(mode)
     samples = [
         {"user_input": c["question"], "retrieved_contexts": ctx, "response": resp, "reference": c["reference"]}
         for c in cases
         for resp, ctx in [answer(c["question"])]
     ]
-
-    rows = asyncio.run(score_local(samples))
-
     import pandas as pd
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(asyncio.run(score_local(samples)))
+    return df, df[METRIC_COLS].mean(numeric_only=True)
+
+
+def run_local(mode: str) -> None:
+    cases = load_cases_local()
+    print(f"Evaluating {len(cases)} cases locally (mode={mode})...")
+    df, means = _score_cases(cases, mode)
+
     ARTIFACTS_DIR.mkdir(exist_ok=True)
     df.to_csv(ARTIFACTS_DIR / "results.csv", index=False)
-
-    metric_cols = ["faithfulness", "context_recall", "answer_accuracy"]
-    means = df[metric_cols].mean(numeric_only=True)
     lines = ["| Metric | Mean score |", "| --- | --- |"]
-    for metric in metric_cols:
-        lines.append(f"| {metric} | {means[metric]:.3f} |")
+    lines += [f"| {m} | {means[m]:.3f} |" for m in METRIC_COLS]
     table = "\n".join(lines)
-    (ARTIFACTS_DIR / "results.md").write_text(f"# GridWatch RAG baseline\n\n{len(cases)} cases.\n\n{table}\n")
-
+    (ARTIFACTS_DIR / "results.md").write_text(f"# GridWatch RAG ({mode})\n\n{len(cases)} cases.\n\n{table}\n")
     print("\n" + table)
-    print(f"\nSaved per-case scores to {ARTIFACTS_DIR / 'results.csv'} and summary to results.md")
+
+
+def run_compare() -> None:
+    """Task 6: score dense (baseline) vs hybrid (advanced) on the same cases."""
+    cases = load_cases_local()
+    print(f"Comparing dense vs hybrid retrieval on {len(cases)} cases...")
+    _, dense = _score_cases(cases, "dense")
+    _, hybrid = _score_cases(cases, "hybrid")
+
+    lines = ["| Metric | Dense (baseline) | Hybrid (advanced) | Delta |", "| --- | --- | --- | --- |"]
+    for m in METRIC_COLS:
+        lines.append(f"| {m} | {dense[m]:.3f} | {hybrid[m]:.3f} | {hybrid[m] - dense[m]:+.3f} |")
+    table = "\n".join(lines)
+
+    ARTIFACTS_DIR.mkdir(exist_ok=True)
+    (ARTIFACTS_DIR / "comparison.md").write_text(
+        f"# GridWatch RAG: dense vs hybrid\n\n{len(cases)} cases.\n\n{table}\n"
+    )
+    print("\n" + table)
+    print(f"\nSaved comparison to {ARTIFACTS_DIR / 'comparison.md'}")
 
 
 def main() -> int:
     load_env()
     parser = argparse.ArgumentParser(description="Score the GridWatch RAG pipeline with Ragas.")
     parser.add_argument("--local", action="store_true", help="score local testset.json instead of a LangSmith experiment")
+    parser.add_argument("--compare", action="store_true", help="score dense vs hybrid on the local testset (Task 6)")
+    parser.add_argument("--mode", choices=["dense", "hybrid"], default="hybrid", help="retrieval mode for --local")
     parser.add_argument("--dataset-name", default="gridwatch-rag-eval", help="LangSmith dataset name")
     args = parser.parse_args()
 
-    if args.local:
-        run_local()
+    if args.compare:
+        run_compare()
+    elif args.local:
+        run_local(args.mode)
     else:
         asyncio.run(run_langsmith(args.dataset_name))
     return 0

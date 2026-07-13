@@ -31,10 +31,12 @@ reviewed before they become the dataset.
 
 ```bash
 uv run python run_eval.py                    # LangSmith experiment on the dataset
-uv run python run_eval.py --local            # offline: score local testset.json
+uv run python run_eval.py --local            # offline: score local testset.json (hybrid)
+uv run python run_eval.py --local --mode dense   # offline, dense-only
+uv run python run_eval.py --compare          # dense vs hybrid table (Task 6)
 ```
 
-Both score **Faithfulness**, **Context Recall**, and **Answer Accuracy**.
+All score **Faithfulness**, **Context Recall**, and **Answer Accuracy**.
 
 - **Default (LangSmith):** runs a `langsmith.aevaluate` experiment against the
   dataset, so per-example and aggregate scores appear in the **LangSmith UI** under

@@ -31,6 +31,11 @@ RAG and tool requirements. It should be updated as the project scope changes.
   Cloud collection offline; runtime connects to it (or builds an in-memory index
   locally). Retrieval is best-effort and returns nothing on failure so callers
   degrade gracefully.
+- **Retrieval mode:** hybrid by default (`RAG_RETRIEVAL_MODE=hybrid`) — dense
+  (semantic) + BM25 (exact-keyword) fused with Reciprocal Rank Fusion, so exact
+  technical tokens (CVE ids, ports, protocol names) are not missed by embeddings
+  alone. `dense` is selectable as the baseline. See `docs/evaluation_plan.md` for
+  the dense-vs-hybrid comparison.
 - **Consumers:**
   - `security_chat` — agentic: the retriever is a `@tool`
     (`retrieve_security_guidance`) the model calls in a bounded ReAct loop when a
