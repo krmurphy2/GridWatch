@@ -16,6 +16,7 @@ results and callers degrade gracefully rather than failing the request.
 """
 
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Tuple
@@ -29,11 +30,25 @@ from llm import get_embeddings
 CORPUS_DIR = Path(__file__).resolve().parent / "corpus"
 COLLECTION_NAME = os.getenv("QDRANT_COLLECTION", "gridwatch_security_guidance")
 DEFAULT_RETRIEVAL_K = int(os.getenv("RAG_RETRIEVAL_K", "4"))
+# Candidate pool each retriever contributes before fusion (hybrid mode).
+FIRST_STAGE_K = int(os.getenv("RAG_FIRST_STAGE_K", "8"))
+RRF_CONSTANT = 60
 
 CHUNK_SIZE = 900
 CHUNK_OVERLAP = 120
 # Markdown-aware separators so chunks break on headings/paragraphs first.
 _SEPARATORS = ["\n## ", "\n### ", "\n\n", "\n", ". ", " "]
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _retrieval_mode() -> str:
+    """'hybrid' (dense + BM25 fused, default) or 'dense' (semantic only)."""
+    return os.getenv("RAG_RETRIEVAL_MODE", "hybrid").strip().lower()
+
+
+def _tokenize(text: str) -> List[str]:
+    return _TOKEN_RE.findall(text.lower())
 
 
 def _source_label(text: str, fallback: str) -> str:
@@ -103,13 +118,60 @@ def _vector_store():
     )
 
 
+@lru_cache(maxsize=1)
+def _bm25_index():
+    """BM25 over the bundled corpus chunks (lexical / exact-keyword retrieval)."""
+    from rank_bm25 import BM25Okapi
+
+    chunks = build_documents()
+    bm25 = BM25Okapi([_tokenize(chunk.page_content) for chunk in chunks])
+    return bm25, chunks
+
+
+def _dense_docs(query: str, k: int) -> List[Document]:
+    return [doc for doc, _score in _vector_store().similarity_search_with_score(query, k=k)]
+
+
+def _bm25_docs(query: str, k: int) -> List[Document]:
+    bm25, chunks = _bm25_index()
+    scores = bm25.get_scores(_tokenize(query))
+    order = sorted(range(len(chunks)), key=lambda i: scores[i], reverse=True)
+    return [chunks[i] for i in order[:k] if scores[i] > 0]
+
+
+def _rrf_fuse(ranked_lists: List[List[Document]], k: int) -> List[Tuple[Document, float]]:
+    """Reciprocal Rank Fusion: combine rankings by 1/(c + rank), lists weighted equally.
+
+    Chunks are keyed by content so the same chunk from the dense and lexical lists
+    reinforces instead of duplicating.
+    """
+    scores: dict = {}
+    docs: dict = {}
+    for ranked in ranked_lists:
+        for rank, doc in enumerate(ranked):
+            key = doc.page_content
+            scores[key] = scores.get(key, 0.0) + 1.0 / (RRF_CONSTANT + rank + 1)
+            docs.setdefault(key, doc)
+    ordered = sorted(scores.keys(), key=lambda key: scores[key], reverse=True)
+    return [(docs[key], scores[key]) for key in ordered[:k]]
+
+
 def retrieve(query: str, k: int = DEFAULT_RETRIEVAL_K) -> List[Tuple[Document, float]]:
-    """Return up to k (Document, score) matches. Best-effort: [] on any failure."""
+    """Return up to k (Document, score) matches. Best-effort: [] on any failure.
+
+    Hybrid mode (default) fuses dense (semantic) and BM25 (exact-keyword) results
+    with Reciprocal Rank Fusion, so exact technical tokens — CVE ids, port numbers,
+    protocol names like WPA3 or TR-069 — aren't missed by embeddings alone.
+    RAG_RETRIEVAL_MODE=dense falls back to semantic-only.
+    """
     if not query or not query.strip():
         return []
     try:
-        store = _vector_store()
-        return store.similarity_search_with_score(query, k=k)
+        if _retrieval_mode() == "dense":
+            return _vector_store().similarity_search_with_score(query, k=k)
+        dense = _dense_docs(query, FIRST_STAGE_K)
+        lexical = _bm25_docs(query, FIRST_STAGE_K)
+        return _rrf_fuse([dense, lexical], k)
     except Exception:
         # Retrieval is enrichment, not load-bearing — never fail the caller.
         return []

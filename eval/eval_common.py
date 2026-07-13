@@ -7,6 +7,7 @@ the numbers reflect the shipped pipeline.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import List, Tuple
 
@@ -25,6 +26,14 @@ CHUNK_SIZE = 900
 CHUNK_OVERLAP = 120
 _SEPARATORS = ["\n## ", "\n### ", "\n\n", "\n", ". ", " "]
 RETRIEVAL_K = int(os.getenv("RAG_RETRIEVAL_K", "4"))
+FIRST_STAGE_K = int(os.getenv("RAG_FIRST_STAGE_K", "8"))
+RRF_CONSTANT = 60
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _tokenize(text: str) -> List[str]:
+    return _TOKEN_RE.findall(text.lower())
 
 _ANSWER_PROMPT = (
     "You are GridWatch, helping a non-technical home user. Answer the question using "
@@ -122,24 +131,50 @@ def corpus_documents() -> List[Document]:
     return splitter.split_documents(docs)
 
 
-def build_rag():
-    """Build an in-memory RAG pipeline over the corpus.
+def build_rag(mode: str = "hybrid"):
+    """Build an in-memory RAG pipeline over the corpus (mirrors agent/rag.py).
+
+    mode="dense": semantic search only (the Task 5 baseline).
+    mode="hybrid": dense + BM25 fused with Reciprocal Rank Fusion (the Task 6
+    advanced retriever).
 
     Returns an `answer(question) -> (response_text, [context_texts])` callable that
-    retrieves top-K chunks and generates a grounded answer, capturing the exact
-    contexts used so faithfulness/recall can be scored.
+    captures the exact contexts used so faithfulness/recall can be scored.
     """
+    from rank_bm25 import BM25Okapi
+
+    documents = corpus_documents()
     store = QdrantVectorStore.from_documents(
-        corpus_documents(),
-        embedding=embeddings(),
-        location=":memory:",
-        collection_name="gridwatch_eval",
+        documents, embedding=embeddings(), location=":memory:", collection_name="gridwatch_eval"
     )
+    bm25 = BM25Okapi([_tokenize(doc.page_content) for doc in documents])
     llm = chat_model()
 
+    def _dense(query: str, k: int) -> List[Document]:
+        return store.similarity_search(query, k=k)
+
+    def _bm25(query: str, k: int) -> List[Document]:
+        scores = bm25.get_scores(_tokenize(query))
+        order = sorted(range(len(documents)), key=lambda i: scores[i], reverse=True)
+        return [documents[i] for i in order[:k] if scores[i] > 0]
+
+    def _rrf(ranked_lists: List[List[Document]], k: int) -> List[Document]:
+        fused: dict = {}
+        docs: dict = {}
+        for ranked in ranked_lists:
+            for rank, doc in enumerate(ranked):
+                key = doc.page_content
+                fused[key] = fused.get(key, 0.0) + 1.0 / (RRF_CONSTANT + rank + 1)
+                docs.setdefault(key, doc)
+        return [docs[key] for key in sorted(fused, key=lambda key: fused[key], reverse=True)[:k]]
+
+    def _retrieve(query: str) -> List[Document]:
+        if mode == "dense":
+            return _dense(query, RETRIEVAL_K)
+        return _rrf([_dense(query, FIRST_STAGE_K), _bm25(query, FIRST_STAGE_K)], RETRIEVAL_K)
+
     def answer(question: str) -> Tuple[str, List[str]]:
-        docs = store.similarity_search(question, k=RETRIEVAL_K)
-        contexts = [d.page_content for d in docs]
+        contexts = [doc.page_content for doc in _retrieve(question)]
         prompt = _ANSWER_PROMPT.format(context="\n\n".join(contexts), question=question)
         response = llm.invoke(prompt)
         text = response.content if isinstance(response.content, str) else str(response.content)
