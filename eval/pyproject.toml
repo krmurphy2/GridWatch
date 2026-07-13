@@ -1,0 +1,24 @@
+[project]
+name = "gridwatch-eval"
+version = "0.1.0"
+description = "Offline RAG evaluation harness for GridWatch (isolated from the deployed agent to avoid dependency conflicts)"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "ragas",
+    # ragas 0.4.x imports a legacy Vertex module that newer langchain-community
+    # releases removed; 0.3.31 still ships it. (Same pin the course uses.)
+    "langchain-community==0.3.31",
+    "langsmith",
+    "openevals",
+    "langchain-openai",
+    "langchain-qdrant",
+    "qdrant-client",
+    "langchain-text-splitters",
+    "langchain-core",
+    "pandas",
+    "python-dotenv",
+    "rapidfuzz>=3.14.5",
+]
+
+[tool.uv]
+package = false
