@@ -46,15 +46,31 @@ extensibility, the gateway is justified.
 
 ## Selected Gateway
 
-Use LiteLLM for the MVP.
+Use the **Vercel AI Gateway** for the MVP (LiteLLM was the earlier plan; see below).
 
 Reasons:
 
 1. It satisfies the challenge gateway requirement.
-2. It works with an OpenAI API key.
-3. It preserves optional fallback paths to Anthropic, Gemini, or local models.
-4. It supports cost and usage tracking patterns needed by the repo rules.
-5. It keeps provider-specific code out of the LangGraph agent.
+2. It is OpenAI-compatible, so the agent keeps using `langchain-openai`; enabling
+   the gateway is just a `base_url` + key change (see `agent/llm.py`).
+3. The project already deploys its frontend on Vercel, so the gateway is the
+   lowest-friction managed option and adds no new vendor.
+4. It provides centralized cost/usage tracking, fallback, and observability
+   without provider-specific code in the graphs.
+5. It matches the stack taught in the certification course.
+
+Configuration is centralized in `agent/llm.py`: when `AI_GATEWAY_API_KEY` is set,
+`get_chat_model()` / `get_embeddings()` route through the gateway and
+provider-qualify model ids (e.g. `openai/gpt-5.1`); otherwise they call OpenAI
+directly, so local development still works with just an `OPENAI_API_KEY`.
+
+Note: the agent runs on LangGraph Platform (not inside Vercel's runtime), so it
+authenticates the gateway with an explicit `AI_GATEWAY_API_KEY` rather than a
+Vercel OIDC token.
+
+LiteLLM remains a viable alternative if provider routing beyond OpenAI is needed
+later; it was deprioritized because the Vercel AI Gateway covers the MVP needs
+with less setup.
 
 ## Primary Model
 

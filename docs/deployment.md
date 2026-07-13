@@ -80,10 +80,17 @@ Required agent environment variables:
 
 ```bash
 OPENAI_API_KEY="your-openai-api-key"
+OPENAI_MODEL="gpt-5.1"
+OPENAI_EMBEDDING_MODEL="text-embedding-3-small"
+# Vercel AI Gateway (OpenAI-compatible). Set on the LangGraph deployment to route
+# all model/embedding calls through the gateway; unset to call OpenAI directly.
+# The agent runs on LangGraph Platform (not Vercel), so it needs an explicit key —
+# the Vercel OIDC token path is not available here.
+AI_GATEWAY_API_KEY="your-vercel-ai-gateway-key"
+AI_GATEWAY_BASE_URL="https://ai-gateway.vercel.sh/v1"
 LANGSMITH_API_KEY="your-langsmith-api-key"
 LANGSMITH_TRACING="true"
 LANGSMITH_PROJECT="gridwatch-router-extraction"
-OPENAI_MODEL="gpt-5.1"
 ```
 
 The graph entries are defined in `agent/langgraph.json`:

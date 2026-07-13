@@ -1,13 +1,13 @@
 import json
-import os
 import time
 from typing import Any, Dict, List, Optional, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
+
+from llm import get_chat_model
 
 
 class RouterExtraction(BaseModel):
@@ -174,8 +174,7 @@ def extract_router_details(
     state: RouterExtractionState, config: Optional[RunnableConfig] = None
 ) -> RouterExtractionState:
     user_id, namespace = _resolve_namespace(config)
-    model_name = os.getenv("OPENAI_MODEL", "gpt-5.1")
-    llm = ChatOpenAI(model=model_name, temperature=0, max_tokens=1200)
+    llm = get_chat_model(temperature=0, max_tokens=1200)
     image_base64 = state["imageBase64"]
     image_mime = state.get("imageMime", "image/png")
     user_notes = state.get("userNotes", "")

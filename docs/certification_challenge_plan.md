@@ -66,7 +66,7 @@ for scan restrictions and data handling boundaries.
 | Challenge Component | Current Choice | Supporting Document |
 | --- | --- | --- |
 | LLM | Anthropic Claude via an LLM gateway | `docs/model_choices.md` |
-| LLM gateway | LiteLLM as the initial default; alternatives documented | `docs/model_choices.md` |
+| LLM gateway | Vercel AI Gateway (LiteLLM documented as alternative) | `docs/model_choices.md` |
 | Agent orchestration | LangGraph | `docs/architecture.md` |
 | Tools | Screenshot/evidence extractor, external exposure scan, passive intelligence, NVD CVE lookup, RAG retriever, Tavily search | `docs/architecture.md` |
 | Embedding model | To be finalized during data scoping | `docs/data_strategy.md` |
