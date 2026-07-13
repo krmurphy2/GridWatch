@@ -13,11 +13,21 @@ another's. The system prompt tightly constrains scope and tone:
 
 from typing import Any, Dict, List, Optional, TypedDict
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
 from llm import get_chat_model
+from rag import retrieve_security_guidance
+
+# Cap on retrieve -> reason cycles per reply, so a misbehaving model can't loop.
+MAX_TOOL_ITERATIONS = 3
 
 
 class SecurityChatState(TypedDict, total=False):
@@ -65,6 +75,16 @@ GROUNDING AND HONESTY:
   known, say so plainly and suggest they capture it (e.g. upload a screenshot of
   that router page) so the assessment can improve.
 - Never reveal or ask for passwords, Wi-Fi passphrases, or other secrets.
+
+USING TRUSTED GUIDANCE:
+- You have a `retrieve_security_guidance` tool backed by GridWatch's trusted
+  home-network security guidance. Call it when the user asks how to fix, change,
+  or understand a security setting, port, vulnerability, or exposure result, so
+  your advice is grounded rather than from memory.
+- Base remediation steps on what the tool returns. Do not fabricate guidance; if
+  the tool returns nothing relevant, give safe general advice and say so.
+- Keep the plain-language tone — do not dump raw tool text or [Source N] labels at
+  the user unless they ask for detailed references.
 """.strip()
 
 
@@ -144,13 +164,41 @@ def respond(
         f"USER'S ROUTER PROFILE:\n{profile_summary}"
     )
 
-    llm = get_chat_model(temperature=0.2, max_tokens=700)
-
     messages: List[BaseMessage] = [SystemMessage(content=system_content)]
     messages.extend(_to_lc_messages(history))
 
-    response = llm.invoke(messages)
-    reply = response.content if isinstance(response.content, str) else str(response.content)
+    # Bounded ReAct loop: the model may call retrieve_security_guidance to ground
+    # its answer, then reason over the results. We cap iterations so a model that
+    # keeps requesting tools can't loop forever.
+    llm = get_chat_model(temperature=0.2, max_tokens=700).bind_tools(
+        [retrieve_security_guidance]
+    )
+
+    response: Optional[BaseMessage] = None
+    for _ in range(MAX_TOOL_ITERATIONS):
+        response = llm.invoke(messages)
+        messages.append(response)
+
+        tool_calls = getattr(response, "tool_calls", None)
+        if not tool_calls:
+            break
+
+        for call in tool_calls:
+            try:
+                result = retrieve_security_guidance.invoke(call["args"])
+            except Exception:
+                result = "Guidance lookup was unavailable."
+            messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+
+    # If we exhausted the tool budget mid-call, ask once more without tools so the
+    # user always gets a written answer rather than a dangling tool request.
+    if response is not None and getattr(response, "tool_calls", None):
+        response = get_chat_model(temperature=0.2, max_tokens=700).invoke(messages)
+
+    raw = response.content if response is not None else ""
+    reply = raw if isinstance(raw, str) else str(raw)
+    if not reply.strip():
+        reply = "Sorry, I couldn't generate a response just now. Please try again."
 
     return {**state, "output": {"reply": reply}, "namespace": namespace}
 

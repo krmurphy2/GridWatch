@@ -21,6 +21,24 @@ RAG and tool requirements. It should be updated as the project scope changes.
   A self-hosted or higher-tier deployment was deliberately deferred. This supersedes
   the earlier "ChromaDB for prototype" note in the planning docs.
 
+## RAG Implementation (as built)
+
+- **Corpus:** project-authored plain-English guidance under `agent/corpus/*.md`,
+  each doc citing authoritative sources (CISA, OWASP, CIS, NVD). The first H1 line
+  is used as the citation label shown to users.
+- **Pipeline (`agent/rag.py`):** markdown-aware `RecursiveCharacterTextSplitter`
+  (900/120) → `text-embedding-3-small` → Qdrant. `ingest.py` builds the Qdrant
+  Cloud collection offline; runtime connects to it (or builds an in-memory index
+  locally). Retrieval is best-effort and returns nothing on failure so callers
+  degrade gracefully.
+- **Consumers:**
+  - `security_chat` — agentic: the retriever is a `@tool`
+    (`retrieve_security_guidance`) the model calls in a bounded ReAct loop when a
+    question needs grounded guidance.
+  - `findings_summary` — deterministic: guidance is retrieved from the findings
+    context and injected before generation; the informing source titles are
+    returned as `sources` and shown on the dashboard.
+
 ## How To Use This Exercise
 
 For each feature, decide:

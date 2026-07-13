@@ -88,10 +88,20 @@ OPENAI_EMBEDDING_MODEL="text-embedding-3-small"
 # the Vercel OIDC token path is not available here.
 AI_GATEWAY_API_KEY="your-vercel-ai-gateway-key"
 AI_GATEWAY_BASE_URL="https://ai-gateway.vercel.sh/v1"
+# Qdrant Cloud for RAG. Build the collection once before/after deploy with
+# `cd agent && QDRANT_URL=... QDRANT_API_KEY=... uv run python ingest.py`.
+QDRANT_URL="https://your-cluster.qdrant.io"
+QDRANT_API_KEY="your-qdrant-api-key"
+QDRANT_COLLECTION="gridwatch_security_guidance"
 LANGSMITH_API_KEY="your-langsmith-api-key"
 LANGSMITH_TRACING="true"
 LANGSMITH_PROJECT="gridwatch-router-extraction"
 ```
+
+If `QDRANT_URL` is unset the agent builds an in-memory index from the bundled
+corpus on first use, so retrieval still works without Qdrant Cloud (rebuilt per
+process). For a deployed public endpoint, set the Qdrant Cloud vars and run the
+ingestion script so the collection persists and is not re-embedded per cold start.
 
 The graph entries are defined in `agent/langgraph.json`:
 

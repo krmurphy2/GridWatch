@@ -52,6 +52,9 @@ export type FindingsAssessment = {
   summary: string;
   actions: AssessmentAction[];
   source: "llm" | "heuristic";
+  // Titles of the trusted-guidance documents that informed an LLM assessment
+  // (empty for the heuristic fallback, which uses no retrieval).
+  sources: string[];
 };
 
 // Latest CVE + passive-intel results for a user, retained as assessment memory.

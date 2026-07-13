@@ -84,6 +84,7 @@ describe("buildHeuristicAssessment", () => {
     expect(result.source).toBe("heuristic");
     expect(result.actions).toHaveLength(1);
     expect(result.actions[0].priority).toBe("low");
+    expect(result.sources).toEqual([]);
   });
 
   it("flags high risk for a severe CVE by severity", () => {
@@ -158,6 +159,12 @@ describe("parseAssessment", () => {
     expect(result?.source).toBe("llm");
     expect(result?.riskLevel).toBe("low");
     expect(result?.actions[0].priority).toBe("low");
+  });
+
+  it("parses guidance sources when present and defaults to empty", () => {
+    expect(parseAssessment(valid)?.sources).toEqual([]);
+    const withSources = parseAssessment({ ...valid, sources: ["Wi-Fi encryption", 42, "Firmware updates"] });
+    expect(withSources?.sources).toEqual(["Wi-Fi encryption", "Firmware updates"]);
   });
 
   it("defaults an unknown priority to medium", () => {
