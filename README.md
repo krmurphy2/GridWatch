@@ -138,7 +138,7 @@ flowchart TD
 | Component | Choice | Why |
 | --- | --- | --- |
 | LLM | OpenAI (gpt-5.1) | Strong reasoning and plain-English security explanation; vision support for router screenshot extraction. |
-| LLM gateway | LiteLLM | Target gateway for provider routing, fallback, and cost tracking after the first extraction slice. |
+| LLM gateway | Vercel AI Gateway | OpenAI-compatible gateway for cost tracking, fallback, and observability; low-friction since the app already deploys on Vercel (see `docs/model_choices.md`). |
 | Agent orchestration | LangGraph | Makes tool routing, approval gates, and agent state explicit. |
 | Tools | Screenshot extraction, exposure scan, passive intelligence, NVD, Tavily, RAG retriever | Matches the external-first MVP workflow. |
 | Embedding model | To be finalized during implementation | Should be chosen based on retrieval quality, cost, and latency. |

@@ -11,13 +11,13 @@ another's. The system prompt tightly constrains scope and tone:
   devices the user does not own.
 """
 
-import os
 from typing import Any, Dict, List, Optional, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
+
+from llm import get_chat_model
 
 
 class SecurityChatState(TypedDict, total=False):
@@ -144,8 +144,7 @@ def respond(
         f"USER'S ROUTER PROFILE:\n{profile_summary}"
     )
 
-    model_name = os.getenv("OPENAI_MODEL", "gpt-5.1")
-    llm = ChatOpenAI(model=model_name, temperature=0.2, max_tokens=700)
+    llm = get_chat_model(temperature=0.2, max_tokens=700)
 
     messages: List[BaseMessage] = [SystemMessage(content=system_content)]
     messages.extend(_to_lc_messages(history))

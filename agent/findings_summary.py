@@ -16,14 +16,14 @@ advisory, not load-bearing.
 """
 
 import json
-import os
 from typing import Any, Dict, List, Optional, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
+
+from llm import get_chat_model
 
 
 class AssessmentAction(BaseModel):
@@ -188,8 +188,7 @@ def summarize(
     """Produce a plain-English assessment JSON from the raw findings."""
     _, namespace = _resolve_namespace(config)
 
-    model_name = os.getenv("OPENAI_MODEL", "gpt-5.1")
-    llm = ChatOpenAI(model=model_name, temperature=0.3, max_tokens=900)
+    llm = get_chat_model(temperature=0.3, max_tokens=900)
 
     response = llm.invoke(
         [
