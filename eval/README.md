@@ -30,14 +30,20 @@ reviewed before they become the dataset.
 ## 2. Run the evaluation
 
 ```bash
-uv run python run_eval.py                    # pulls questions from the LangSmith dataset
-uv run python run_eval.py --local            # or score the local testset.json
+uv run python run_eval.py                    # LangSmith experiment on the dataset
+uv run python run_eval.py --local            # offline: score local testset.json
 ```
 
-Outputs a table of **Faithfulness**, **LLM Context Recall**, and **Factual
-Correctness**, and writes per-case scores to `artifacts/results.csv` and a summary
-to `artifacts/results.md`. This baseline is what Task 6 compares an advanced
-retriever against.
+Both score **Faithfulness**, **Context Recall**, and **Answer Accuracy**.
+
+- **Default (LangSmith):** runs a `langsmith.aevaluate` experiment against the
+  dataset, so per-example and aggregate scores appear in the **LangSmith UI** under
+  the dataset's *Experiments* tab. Requires the dataset to exist (step 1 `--push`)
+  and `LANGSMITH_API_KEY`.
+- **`--local`:** scores `artifacts/testset.json` and writes `artifacts/results.csv`
+  + `artifacts/results.md`. No LangSmith needed.
+
+This baseline is what Task 6 compares an advanced retriever against.
 
 ## Notes
 
