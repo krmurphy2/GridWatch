@@ -103,6 +103,41 @@ corpus on first use, so retrieval still works without Qdrant Cloud (rebuilt per
 process). For a deployed public endpoint, set the Qdrant Cloud vars and run the
 ingestion script so the collection persists and is not re-embedded per cold start.
 
+### Updating the RAG corpus
+
+The corpus (`agent/corpus/*.md`) is loaded by glob, so a new or edited file is
+picked up automatically — no code or config changes are needed. But the Qdrant
+Cloud collection is built **offline and is not auto-synced**, so after any corpus
+change you must re-ingest, or production keeps serving the old vectors.
+
+> **Important:** this failure is silent. Stale or missing vectors produce empty
+> guidance (no sources, generic answers), not an error. Always verify after
+> ingesting.
+
+1. Add or edit files in `agent/corpus/*.md`. The first `#` heading becomes the
+   citation label shown to users.
+2. Re-ingest into Qdrant Cloud (uses `force_recreate`, so it cleanly rebuilds):
+
+   ```bash
+   cd agent
+   QDRANT_URL="https://your-cluster.qdrant.io" \
+   QDRANT_API_KEY="your-qdrant-api-key" \
+   OPENAI_API_KEY="your-openai-api-key" \
+   uv run python ingest.py
+   ```
+
+   Use the same `QDRANT_URL`/`QDRANT_API_KEY`/`QDRANT_COLLECTION` as the deployment.
+   The embedding model is `text-embedding-3-small` either way, so ingesting with
+   direct OpenAI stays compatible with a gateway-routed deployment.
+3. Verify:
+   - `curl -s "$QDRANT_URL/collections/gridwatch_security_guidance" -H "api-key: $QDRANT_API_KEY"`
+     shows the updated `points_count`.
+   - Re-run a security scan or ask the chat a question, and confirm the guidance
+     reflects the new content (and a `points/query` 200 appears in the Qdrant logs).
+
+Local development needs none of this — with `QDRANT_URL` unset, the in-memory
+index rebuilds from the current corpus on every run.
+
 The graph entries are defined in `agent/langgraph.json`:
 
 ```json
