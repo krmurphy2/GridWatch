@@ -34,6 +34,7 @@ uv run python run_eval.py                    # LangSmith experiment on the datas
 uv run python run_eval.py --local            # offline: score local testset.json (hybrid)
 uv run python run_eval.py --local --mode dense   # offline, dense-only
 uv run python run_eval.py --compare          # dense vs hybrid table (Task 6)
+uv run python run_eval.py --compare-prompt   # baseline vs grounded answer prompt (Task 6)
 ```
 
 All score **Faithfulness**, **Context Recall**, and **Answer Accuracy**.

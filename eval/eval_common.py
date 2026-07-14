@@ -35,12 +35,28 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 def _tokenize(text: str) -> List[str]:
     return _TOKEN_RE.findall(text.lower())
 
-_ANSWER_PROMPT = (
+# Baseline answer prompt (the Task 5 pipeline).
+_BASELINE_ANSWER_PROMPT = (
     "You are GridWatch, helping a non-technical home user. Answer the question using "
     "ONLY the guidance below. Be concise and plain-spoken. If the guidance does not "
     "cover it, say you don't have guidance on that.\n\nGUIDANCE:\n{context}\n\n"
     "QUESTION: {question}\n\nANSWER:"
 )
+
+# Grounded answer prompt (Task 6 non-retrieval improvement): a hard no-outside-
+# knowledge boundary plus a self-verification pass, which is the main lever for
+# Ragas faithfulness (dropping claims not supported by the retrieved context).
+_GROUNDED_ANSWER_PROMPT = (
+    "You are GridWatch, helping a non-technical home user. Answer using ONLY the "
+    "guidance below. Do NOT add security advice from general knowledge, even if it is "
+    "correct. If the guidance does not cover the question, say you don't have guidance "
+    "on that rather than guessing.\n\n"
+    "Before finalizing, re-read your answer and delete any sentence that is not "
+    "directly supported by the guidance. Be concise and plain-spoken.\n\n"
+    "GUIDANCE:\n{context}\n\nQUESTION: {question}\n\nANSWER:"
+)
+
+_ANSWER_PROMPTS = {"baseline": _BASELINE_ANSWER_PROMPT, "grounded": _GROUNDED_ANSWER_PROMPT}
 
 
 def load_env() -> None:
@@ -131,18 +147,21 @@ def corpus_documents() -> List[Document]:
     return splitter.split_documents(docs)
 
 
-def build_rag(mode: str = "hybrid"):
+def build_rag(mode: str = "hybrid", prompt_style: str = "grounded"):
     """Build an in-memory RAG pipeline over the corpus (mirrors agent/rag.py).
 
     mode="dense": semantic search only (the Task 5 baseline).
     mode="hybrid": dense + BM25 fused with Reciprocal Rank Fusion (the Task 6
     advanced retriever).
+    prompt_style="baseline"|"grounded": which answer prompt to use (Task 6
+    non-retrieval improvement A/B).
 
     Returns an `answer(question) -> (response_text, [context_texts])` callable that
     captures the exact contexts used so faithfulness/recall can be scored.
     """
     from rank_bm25 import BM25Okapi
 
+    answer_prompt = _ANSWER_PROMPTS[prompt_style]
     documents = corpus_documents()
     store = QdrantVectorStore.from_documents(
         documents, embedding=embeddings(), location=":memory:", collection_name="gridwatch_eval"
@@ -175,7 +194,7 @@ def build_rag(mode: str = "hybrid"):
 
     def answer(question: str) -> Tuple[str, List[str]]:
         contexts = [doc.page_content for doc in _retrieve(question)]
-        prompt = _ANSWER_PROMPT.format(context="\n\n".join(contexts), question=question)
+        prompt = answer_prompt.format(context="\n\n".join(contexts), question=question)
         response = llm.invoke(prompt)
         text = response.content if isinstance(response.content, str) else str(response.content)
         return text, contexts

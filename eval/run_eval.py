@@ -128,9 +128,9 @@ async def score_local(samples: list) -> list:
 METRIC_COLS = ["faithfulness", "context_recall", "answer_accuracy"]
 
 
-def _score_cases(cases: list, mode: str):
-    """Run the RAG pipeline (in the given retrieval mode) over cases and score it."""
-    answer = build_rag(mode)
+def _score_cases(cases: list, mode: str, prompt_style: str = "grounded"):
+    """Run the RAG pipeline (given retrieval mode + answer prompt) over cases and score it."""
+    answer = build_rag(mode, prompt_style)
     samples = [
         {"user_input": c["question"], "retrieved_contexts": ctx, "response": resp, "reference": c["reference"]}
         for c in cases
@@ -176,16 +176,39 @@ def run_compare() -> None:
     print(f"\nSaved comparison to {ARTIFACTS_DIR / 'comparison.md'}")
 
 
+def run_compare_prompt() -> None:
+    """Task 6 (non-retrieval): baseline vs grounded answer prompt, hybrid retrieval fixed."""
+    cases = load_cases_local()
+    print(f"Comparing baseline vs grounded prompt on {len(cases)} cases (hybrid retrieval)...")
+    _, baseline = _score_cases(cases, "hybrid", "baseline")
+    _, grounded = _score_cases(cases, "hybrid", "grounded")
+
+    lines = ["| Metric | Baseline prompt | Grounded prompt | Delta |", "| --- | --- | --- | --- |"]
+    for m in METRIC_COLS:
+        lines.append(f"| {m} | {baseline[m]:.3f} | {grounded[m]:.3f} | {grounded[m] - baseline[m]:+.3f} |")
+    table = "\n".join(lines)
+
+    ARTIFACTS_DIR.mkdir(exist_ok=True)
+    (ARTIFACTS_DIR / "prompt_comparison.md").write_text(
+        f"# GridWatch RAG: baseline vs grounded answer prompt\n\n{len(cases)} cases (hybrid).\n\n{table}\n"
+    )
+    print("\n" + table)
+    print(f"\nSaved comparison to {ARTIFACTS_DIR / 'prompt_comparison.md'}")
+
+
 def main() -> int:
     load_env()
     parser = argparse.ArgumentParser(description="Score the GridWatch RAG pipeline with Ragas.")
     parser.add_argument("--local", action="store_true", help="score local testset.json instead of a LangSmith experiment")
-    parser.add_argument("--compare", action="store_true", help="score dense vs hybrid on the local testset (Task 6)")
+    parser.add_argument("--compare", action="store_true", help="score dense vs hybrid retrieval (Task 6)")
+    parser.add_argument("--compare-prompt", action="store_true", help="score baseline vs grounded answer prompt (Task 6)")
     parser.add_argument("--mode", choices=["dense", "hybrid"], default="hybrid", help="retrieval mode for --local")
     parser.add_argument("--dataset-name", default="gridwatch-rag-eval", help="LangSmith dataset name")
     args = parser.parse_args()
 
-    if args.compare:
+    if args.compare_prompt:
+        run_compare_prompt()
+    elif args.compare:
         run_compare()
     elif args.local:
         run_local(args.mode)

@@ -180,16 +180,36 @@ is** (answers not fully grounded in retrieved context). That is a generation
 problem, addressed by the non-retrieval improvement below, not by swapping
 retrievers.
 
-## Non-Retrieval Improvement
+## Non-Retrieval Improvement — Grounded Answer Prompt
 
-Use the same harness to prove at least one additional improvement. Candidate
-improvements:
+Since the retriever wasn't the bottleneck (recall already 1.0) but **faithfulness
+was low**, the non-retrieval improvement targets faithfulness directly: a grounded
+answer prompt with a hard **no-outside-knowledge** boundary plus a
+**self-verification** pass ("re-read and delete any sentence the guidance does not
+support"). Applied to the eval answer prompt and mirrored in the production
+`findings_summary` and `security_chat` prompts.
 
-1. Stricter scan-target validation.
-2. Better user approval flow.
-3. Improved screenshot-derived fact extraction with confidence labels.
-4. Improved passive intelligence source ranking and stale-data warnings.
-5. Improved response template for risk level, evidence, and next steps.
+**Comparison (`run_eval.py --compare-prompt`, hybrid retrieval fixed, 6-case set):**
+
+| Metric | Baseline prompt | Grounded prompt | Delta |
+| --- | --- | --- | --- |
+| Faithfulness | 0.480 | 0.842 | +0.362 |
+| Context Recall | 1.000 | 1.000 | +0.000 |
+| Answer Accuracy | 0.833 | 0.833 | +0.000 |
+
+**Result:** faithfulness improved **+0.36** — a large jump, well outside the judge
+noise band (~±0.1) even on this small set — with **no loss in answer accuracy**.
+So the answers became substantially better grounded in the retrieved guidance
+without becoming less correct or less helpful. This is the highest-leverage change
+found: the generation prompt, not the retriever, was the lever for faithfulness.
+
+Caveat: measured on 6 cases; re-run on a larger set for the formal figure, and
+watch that stricter grounding doesn't start refusing genuinely-useful general
+advice (the durable fix for that is broader corpus coverage, not prompt loosening).
+
+Other candidate improvements (not yet measured): stricter scan-target validation,
+better approval flow, confidence-labeled screenshot extraction, passive-intel
+source ranking / stale-data warnings.
 
 ## Conclusions To Produce
 
