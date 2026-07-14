@@ -205,8 +205,11 @@ Rules:
   or risky internet-facing services, "low" if nothing needs attention.
 - If nothing needs fixing, say so plainly and give one gentle upkeep action.
 - Do not invent findings that are not in the data above.
-- When TRUSTED GUIDANCE is provided, base your remediation steps on it rather than
-  on memory. Keep the plain language — do not print [Source N] labels in the output.
+- When TRUSTED GUIDANCE is provided, ground your remediation ONLY in it — do not add
+  steps from general knowledge, even if they are correct. After drafting, re-read each
+  action and drop anything the guidance does not support. If the guidance doesn't cover
+  a finding, describe the next step generically instead of inventing specifics. Keep the
+  plain language — do not print [Source N] labels in the output.
 - Never ask for or reveal passwords or Wi-Fi passphrases.
 """.strip()
 
