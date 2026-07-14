@@ -18,11 +18,56 @@ import json
 import sys
 from typing import Any, List
 
+from langchain_core.documents import Document
 from ragas.testset import TestsetGenerator
+from ragas.testset.persona import Persona
+from ragas.testset.synthesizers import (
+    MultiHopAbstractQuerySynthesizer,
+    MultiHopSpecificQuerySynthesizer,
+    SingleHopSpecificQuerySynthesizer,
+)
 
-from eval_common import ARTIFACTS_DIR, corpus_documents, load_env, ragas_embeddings, ragas_llm
+from eval_common import (
+    ARTIFACTS_DIR,
+    CORPUS_DIR,
+    TESTSET_PATH,
+    _load_pdf_text,
+    load_env,
+    ragas_embeddings,
+    ragas_llm,
+)
 
-TESTSET_PATH = ARTIFACTS_DIR / "testset.json"
+# Consumer-facing docs produce the most useful everyday questions; the dense specs
+# (OWASP ISTG, WPA3 spec, CVSS spec) are excluded from GENERATION to bound knowledge-
+# graph cost and keep question style plain. Use --all-docs to include everything.
+CONSUMER_DOCS = {
+    "nsa-securing-home-network.pdf",
+    "ftc-secure-home-wifi.pdf",
+    "cisa-project-upskill-module5-home-wifi.pdf",
+    "nist-ir-8425a-router-profile.pdf",
+    "first-cvss-v40-user-guide.pdf",
+    "fbi-ic3-eol-routers-proxy-2025.pdf",
+}
+
+# Personas bias the generator toward our two target voices.
+PERSONAS = [
+    Persona(
+        name="Everyday home user",
+        role_description=(
+            "A non-technical home user who does not know router jargon, ports, or CVEs. "
+            "Asks short, practical questions in clear, correctly-spelled plain English — "
+            "complete sentences, no slang, texting abbreviations, or typos."
+        ),
+    ),
+    Persona(
+        name="Tech-curious home user",
+        role_description=(
+            "A home user comfortable with some technical detail. Asks specific, "
+            "well-formed questions about settings, protocols like WPA3, vulnerability "
+            "severity (CVSS), and why a finding matters. Writes clearly and correctly."
+        ),
+    ),
+]
 
 
 def _as_str_list(value: Any) -> List[str]:
@@ -36,15 +81,37 @@ def _as_str_list(value: Any) -> List[str]:
         return [str(value)]
 
 
-def generate(size: int) -> List[dict]:
-    documents = corpus_documents()
-    generator = TestsetGenerator(llm=ragas_llm(), embedding_model=ragas_embeddings())
-    # raise_exceptions=False: stock Ragas drives its knowledge-graph transforms with
-    # LangChain output parsers, which occasionally fail to parse a model's output.
-    # Tolerate those individual failures and keep whatever generated cleanly rather
-    # than aborting the whole run.
+def _generation_documents(all_docs: bool) -> List[Document]:
+    """Whole reference PDFs to generate from (consumer subset unless --all-docs)."""
+    paths = sorted(CORPUS_DIR.glob("*.pdf"))
+    if not all_docs:
+        paths = [p for p in paths if p.name in CONSUMER_DOCS]
+    documents: List[Document] = []
+    for path in paths:
+        text = _load_pdf_text(path)
+        if text.strip():
+            documents.append(Document(page_content=text, metadata={"source": path.stem, "file": path.name}))
+    return documents
+
+
+def generate(size: int, all_docs: bool = False) -> List[dict]:
+    documents = _generation_documents(all_docs)
+    llm = ragas_llm()
+    # Single-hop-heavy so most questions are simple/factual (everyday user), with a
+    # minority of multi-hop for the more technical, cross-document questions.
+    distribution = [
+        (SingleHopSpecificQuerySynthesizer(llm=llm), 0.6),
+        (MultiHopSpecificQuerySynthesizer(llm=llm), 0.25),
+        (MultiHopAbstractQuerySynthesizer(llm=llm), 0.15),
+    ]
+    generator = TestsetGenerator(llm=llm, embedding_model=ragas_embeddings(), persona_list=PERSONAS)
+    # raise_exceptions=False: tolerate occasional Ragas output-parse failures on
+    # individual knowledge-graph transforms rather than aborting the whole run.
     testset = generator.generate_with_langchain_docs(
-        documents, testset_size=size, raise_exceptions=False
+        documents,
+        testset_size=size,
+        query_distribution=distribution,
+        raise_exceptions=False,
     )
     df = testset.to_pandas()
 
@@ -61,7 +128,7 @@ def generate(size: int) -> List[dict]:
     return records
 
 
-def push(dataset_name: str) -> None:
+def push(dataset_name: str, replace: bool = False) -> None:
     if not TESTSET_PATH.exists():
         print(f"No {TESTSET_PATH} found. Run generation first, then review it.")
         sys.exit(1)
@@ -70,6 +137,20 @@ def push(dataset_name: str) -> None:
 
     records = json.loads(TESTSET_PATH.read_text())
     client = Client()
+
+    # LangSmith rejects a duplicate dataset name. Reuse the canonical dataset by
+    # deleting + recreating it so it exactly matches the current testset.json (no
+    # duplicate examples). Push the dataset BEFORE running experiments on it.
+    if client.has_dataset(dataset_name=dataset_name):
+        if not replace:
+            print(
+                f"Dataset '{dataset_name}' already exists. Re-run with --replace to "
+                f"overwrite it, or pass a different --dataset-name for a new one."
+            )
+            sys.exit(1)
+        client.delete_dataset(dataset_name=dataset_name)
+        print(f"Replaced existing dataset '{dataset_name}'.")
+
     dataset = client.create_dataset(
         dataset_name=dataset_name,
         description="GridWatch synthetic RAG evaluation set (human-reviewed).",
@@ -91,16 +172,18 @@ def push(dataset_name: str) -> None:
 def main() -> int:
     load_env()
     parser = argparse.ArgumentParser(description="Generate/push the GridWatch RAG eval testset.")
-    parser.add_argument("--size", type=int, default=12, help="number of synthetic questions to generate")
+    parser.add_argument("--size", type=int, default=15, help="number of synthetic questions to generate")
+    parser.add_argument("--all-docs", action="store_true", help="generate from the full corpus, not just consumer-facing docs")
     parser.add_argument("--push", action="store_true", help="upload the reviewed local testset to LangSmith")
+    parser.add_argument("--replace", action="store_true", help="overwrite the LangSmith dataset if it already exists")
     parser.add_argument("--dataset-name", default="gridwatch-rag-eval", help="LangSmith dataset name")
     args = parser.parse_args()
 
     if args.push:
-        push(args.dataset_name)
+        push(args.dataset_name, replace=args.replace)
         return 0
 
-    records = generate(args.size)
+    records = generate(args.size, all_docs=args.all_docs)
     ARTIFACTS_DIR.mkdir(exist_ok=True)
     TESTSET_PATH.write_text(json.dumps(records, indent=2))
     print(f"Generated {len(records)} questions -> {TESTSET_PATH}")

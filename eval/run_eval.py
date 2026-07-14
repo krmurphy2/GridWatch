@@ -17,9 +17,7 @@ import asyncio
 import json
 import sys
 
-from eval_common import ARTIFACTS_DIR, build_rag, load_env, ragas_llm
-
-TESTSET_PATH = ARTIFACTS_DIR / "testset.json"
+from eval_common import ARTIFACTS_DIR, TESTSET_PATH, build_rag, load_env, ragas_llm
 
 
 def _val(result) -> float:

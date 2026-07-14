@@ -20,6 +20,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # Corpus lives with the agent; eval/ is its sibling.
 CORPUS_DIR = Path(__file__).resolve().parent.parent / "agent" / "corpus"
 ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
+# Curated eval dataset — committed (not under gitignored artifacts/) so it can be
+# reviewed. generate_dataset.py writes a draft here; curate it in place.
+TESTSET_PATH = Path(__file__).resolve().parent / "testset.json"
 
 # Mirror production retrieval config (agent/rag.py) so eval measures the real thing.
 CHUNK_SIZE = 900
