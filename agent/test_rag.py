@@ -10,13 +10,32 @@ from langchain_core.documents import Document
 import rag
 
 
-def test_load_corpus_uses_h1_titles_as_source():
+def test_load_corpus_is_official_reference_pdfs_only():
     docs = rag.load_corpus()
-    assert len(docs) >= 5
-    for doc in docs:
-        assert doc.metadata["source"]
-        # Title comes from the first H1, not the raw filename stem.
-        assert doc.metadata["source"] != doc.metadata["file"]
+    files = {d.metadata.get("file") for d in docs}
+    assert "nist-ir-8425a-router-profile.pdf" in files
+    assert "first-cvss-v40-specification.pdf" in files
+    # Provenance/reference files must not be ingested as content.
+    assert "rag_corpus_reference.md" not in files
+    # Official-sources-only: every ingested doc is a reference PDF (no authored MD).
+    assert files and all(f.endswith(".pdf") for f in files)
+    assert len(docs) == 9
+
+
+def test_manifest_metadata_attached():
+    nist_file = "nist-ir-8425a-router-profile.pdf"
+    doc = next(d for d in rag.load_corpus() if d.metadata.get("file") == nist_file)
+    assert len(doc.page_content) > 500  # PDF text actually extracted
+    # Metadata propagates from the manifest onto each chunk.
+    chunk = next(c for c in rag.build_documents() if c.metadata.get("file") == nist_file)
+    assert chunk.metadata["doc_id"] == "DOC-001"
+    assert "NIST" in chunk.metadata["title"]
+    assert chunk.metadata["source_url"].startswith("https://")
+    assert chunk.metadata["publish_date"]
+    assert chunk.metadata["license"]
+    assert chunk.metadata["ingestion_date"]  # stamped at load time
+    # Citation label is the doc title (from the manifest), not the filename stem.
+    assert chunk.metadata["source"] == chunk.metadata["title"]
 
 
 def test_split_documents_produces_chunks_with_metadata():
@@ -74,12 +93,12 @@ def test_rrf_fuse_orders_by_fused_score_and_dedupes():
 
 
 def test_bm25_matches_exact_technical_tokens():
-    # BM25 is offline (no embeddings) — exact keywords should surface the right doc.
-    top = rag._bm25_docs("UPnP", k=3)
-    assert top, "expected BM25 hits for UPnP"
-    assert any("UPnP" in doc.metadata.get("source", "") for doc in top)
-    ports = rag._bm25_docs("TR-069 port 7547", k=3)
-    assert any("ports" in doc.metadata.get("source", "").lower() for doc in ports)
+    # BM25 is offline (no embeddings) — exact keywords should surface the right PDF.
+    wpa3 = rag._bm25_docs("WPA3 SAE encryption", k=3)
+    assert wpa3, "expected BM25 hits for WPA3"
+    assert any("wpa3" in doc.metadata.get("file", "").lower() for doc in wpa3)
+    cvss = rag._bm25_docs("CVSS base score vector string", k=3)
+    assert any("cvss" in doc.metadata.get("file", "").lower() for doc in cvss)
 
 
 if __name__ == "__main__":

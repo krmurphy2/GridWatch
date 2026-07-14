@@ -15,8 +15,10 @@ Retrieval is best-effort: if the store cannot be built or reached, it returns no
 results and callers degrade gracefully rather than failing the request.
 """
 
+import csv
 import os
 import re
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Tuple
@@ -51,8 +53,28 @@ def _tokenize(text: str) -> List[str]:
     return _TOKEN_RE.findall(text.lower())
 
 
+MANIFEST_PATH = CORPUS_DIR / "rag_corpus_reference.csv"
+# Markdown in the corpus dir that is provenance/reference, not ingestible content.
+_EXCLUDE_MD = {"rag_corpus_reference.md", "SOURCES.md"}
+_LIGATURES = {"ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl"}
+
+
+@lru_cache(maxsize=1)
+def _manifest() -> dict:
+    """Map local_filename -> provenance row from rag_corpus_reference.csv."""
+    rows: dict = {}
+    if not MANIFEST_PATH.exists():
+        return rows
+    with open(MANIFEST_PATH, newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            filename = (row.get("local_filename") or "").strip()
+            if filename:
+                rows[filename] = row
+    return rows
+
+
 def _source_label(text: str, fallback: str) -> str:
-    """Use the doc's first H1 as its citation label; fall back to the filename."""
+    """Use a markdown doc's first H1 as its citation label; fall back to the filename."""
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("# "):
@@ -60,32 +82,90 @@ def _source_label(text: str, fallback: str) -> str:
     return fallback
 
 
+def _clean_pdf_text(text: str) -> str:
+    """Tidy extracted PDF text: fix ligatures, join hyphenated line breaks, drop bare
+    page-number lines, collapse whitespace. Cleaner text -> cleaner chunks/retrieval."""
+    for bad, good in _LIGATURES.items():
+        text = text.replace(bad, good)
+    text = re.sub(r"-\n(?=\w)", "", text)
+    lines = [ln for ln in text.splitlines() if not re.fullmatch(r"\s*\d{1,4}\s*", ln)]
+    text = "\n".join(lines)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _load_pdf_text(path: Path) -> str:
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(path))
+    raw = "\n".join((page.extract_text() or "") for page in reader.pages)
+    return _clean_pdf_text(raw)
+
+
+def _metadata_for(path: Path) -> dict:
+    """Provenance metadata for a corpus file, from the manifest when available, so
+    every chunk carries its title, source URL, publish date, and license."""
+    meta = {"file": path.name, "source": path.stem}
+    row = _manifest().get(path.name)
+    if row:
+        meta.update(
+            {
+                "source": (row.get("title") or path.stem).strip(),
+                "doc_id": row.get("doc_id"),
+                "title": row.get("title"),
+                "organization": row.get("organization"),
+                "publish_date": row.get("publish_date"),
+                "source_url": row.get("source_url"),
+                "license": row.get("license"),
+            }
+        )
+    meta["ingestion_date"] = date.today().isoformat()
+    return meta
+
+
 def load_corpus() -> List[Document]:
-    """Load the markdown corpus into Documents (metadata source = doc title)."""
+    """Load the corpus into Documents with provenance metadata.
+
+    Content is the trusted industry reference PDFs in corpus/; provenance
+    (title / source_url / publish_date / license) comes from
+    rag_corpus_reference.csv. The reference .md/.csv are excluded — not content.
+    """
     documents: List[Document] = []
     if not CORPUS_DIR.is_dir():
         return documents
+
+    for path in sorted(CORPUS_DIR.glob("*.pdf")):
+        text = _load_pdf_text(path)
+        if text.strip():
+            documents.append(Document(page_content=text, metadata=_metadata_for(path)))
+
     for path in sorted(CORPUS_DIR.glob("*.md")):
+        if path.name in _EXCLUDE_MD:
+            continue
         text = path.read_text(encoding="utf-8")
         if not text.strip():
             continue
-        documents.append(
-            Document(
-                page_content=text,
-                metadata={"source": _source_label(text, path.stem), "file": path.name},
-            )
-        )
+        meta = _metadata_for(path)
+        meta.setdefault("source", _source_label(text, path.stem))
+        documents.append(Document(page_content=text, metadata=meta))
     return documents
 
 
 def split_documents(documents: List[Document]) -> List[Document]:
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        add_start_index=True,
-        separators=_SEPARATORS,
-    )
-    return splitter.split_documents(documents)
+    """Chunk documents with the uniform default, honoring optional per-doc
+    chunk_size/chunk_overlap overrides from the manifest when present."""
+    manifest = _manifest()
+    chunks: List[Document] = []
+    for doc in documents:
+        row = manifest.get(doc.metadata.get("file", ""))
+        size = int(row["chunk_size"]) if row and row.get("chunk_size") else CHUNK_SIZE
+        overlap = int(row["chunk_overlap"]) if row and row.get("chunk_overlap") else CHUNK_OVERLAP
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=size, chunk_overlap=overlap, add_start_index=True, separators=_SEPARATORS
+        )
+        chunks.extend(splitter.split_documents([doc]))
+    return chunks
 
 
 def build_documents() -> List[Document]:

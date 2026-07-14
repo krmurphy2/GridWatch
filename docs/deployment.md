@@ -105,17 +105,19 @@ ingestion script so the collection persists and is not re-embedded per cold star
 
 ### Updating the RAG corpus
 
-The corpus (`agent/corpus/*.md`) is loaded by glob, so a new or edited file is
-picked up automatically — no code or config changes are needed. But the Qdrant
-Cloud collection is built **offline and is not auto-synced**, so after any corpus
-change you must re-ingest, or production keeps serving the old vectors.
+The corpus is the reference PDFs in `agent/corpus/`, loaded by glob, so a new or
+edited PDF is picked up automatically. But the Qdrant Cloud collection is built
+**offline and is not auto-synced**, so after any corpus change you must re-ingest,
+or production keeps serving the old vectors.
 
 > **Important:** this failure is silent. Stale or missing vectors produce empty
 > guidance (no sources, generic answers), not an error. Always verify after
 > ingesting.
 
-1. Add or edit files in `agent/corpus/*.md`. The first `#` heading becomes the
-   citation label shown to users.
+1. Add or remove PDFs in `agent/corpus/`, and add/update the matching row in
+   `agent/corpus/rag_corpus_reference.csv` (the ingestion manifest — `local_filename`
+   plus `title`, `source_url`, `publish_date`, `license`). That row's metadata is
+   attached to every chunk, so keep it accurate.
 2. Re-ingest into Qdrant Cloud (uses `force_recreate`, so it cleanly rebuilds):
 
    ```bash
