@@ -10,9 +10,9 @@ the Certification Challenge.
 
 The RAG evaluation lives in a **separate uv project** under `eval/`, isolated from
 the deployed `agent/` because Ragas's dependency pins (e.g. `langchain-community==0.3.31`)
-conflict with the agent's LangChain 1.x stack. It reuses the same corpus
-(`agent/corpus/*.md`) and the same chunking/embedding/retrieval settings as
-production so the numbers reflect the shipped pipeline.
+conflict with the agent's LangChain 1.x stack. It reuses the same corpus (the
+reference PDFs in `agent/corpus/`) and the same chunking/embedding/retrieval
+settings as production so the numbers reflect the shipped pipeline.
 
 - **`generate_dataset.py`** — Ragas `TestsetGenerator` builds a synthetic question
   set from the corpus (single- and multi-hop), saved locally for a human-review

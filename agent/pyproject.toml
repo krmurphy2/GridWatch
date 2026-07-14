@@ -12,6 +12,7 @@ dependencies = [
     "qdrant-client>=1.18.0",
     "langchain-text-splitters>=1.1.2",
     "rank-bm25>=0.2.2",
+    "pypdf>=6.14.2",
 ]
 
 [tool.setuptools]

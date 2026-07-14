@@ -23,14 +23,21 @@ RAG and tool requirements. It should be updated as the project scope changes.
 
 ## RAG Implementation (as built)
 
-- **Corpus:** project-authored plain-English guidance under `agent/corpus/*.md`,
-  each doc citing authoritative sources (CISA, OWASP, CIS, NVD). The first H1 line
-  is used as the citation label shown to users.
-- **Pipeline (`agent/rag.py`):** markdown-aware `RecursiveCharacterTextSplitter`
-  (900/120) → `text-embedding-3-small` → Qdrant. `ingest.py` builds the Qdrant
-  Cloud collection offline; runtime connects to it (or builds an in-memory index
-  locally). Retrieval is best-effort and returns nothing on failure so callers
-  degrade gracefully.
+- **Corpus:** official industry reference PDFs under `agent/corpus/` — NIST, NSA,
+  CISA, FBI/IC3, OWASP, Wi-Fi Alliance, FTC, and FIRST/CVSS (no project-authored or
+  AI-generated content, to keep the corpus authoritative). `rag_corpus_reference.md`
+  + `.csv` catalog each document's provenance and are excluded from ingestion.
+- **Provenance metadata:** `rag_corpus_reference.csv` is the ingestion manifest;
+  the loader joins each PDF by `local_filename` and attaches `doc_id`, `title`,
+  `organization`, `publish_date`, `source_url`, `license`, and an `ingestion_date`
+  stamp to every chunk's Qdrant payload — so citations show the real title/date/link
+  and freshness is visible.
+- **Pipeline (`agent/rag.py`):** PDF text extraction (`pypdf`) with a light cleanup
+  pass (ligatures, de-hyphenation, page-number/whitespace) → `RecursiveCharacterTextSplitter`
+  (900/120, optional per-doc override via the manifest) → `text-embedding-3-small`
+  → Qdrant. `ingest.py` builds the Qdrant Cloud collection offline; runtime connects
+  to it (or builds an in-memory index locally). Retrieval is best-effort and returns
+  nothing on failure so callers degrade gracefully.
 - **Retrieval mode:** hybrid by default (`RAG_RETRIEVAL_MODE=hybrid`) — dense
   (semantic) + BM25 (exact-keyword) fused with Reciprocal Rank Fusion, so exact
   technical tokens (CVE ids, ports, protocol names) are not missed by embeddings

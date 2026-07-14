@@ -134,10 +134,34 @@ def _source_label(text: str, fallback: str) -> str:
     return fallback
 
 
+_EXCLUDE_MD = {"rag_corpus_reference.md", "SOURCES.md"}
+_LIGATURES = {"ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl"}
+
+
+def _load_pdf_text(path: Path) -> str:
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(path))
+    text = "\n".join((page.extract_text() or "") for page in reader.pages)
+    # Mirror agent/rag.py cleanup so eval retrieval matches production.
+    for bad, good in _LIGATURES.items():
+        text = text.replace(bad, good)
+    text = re.sub(r"-\n(?=\w)", "", text)
+    text = "\n".join(ln for ln in text.splitlines() if not re.fullmatch(r"\s*\d{1,4}\s*", ln))
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
 def corpus_documents() -> List[Document]:
-    """Load + chunk the shared corpus exactly as production does."""
+    """Load + chunk the shared corpus exactly as production does (reference PDFs)."""
     docs: List[Document] = []
+    for path in sorted(CORPUS_DIR.glob("*.pdf")):
+        text = _load_pdf_text(path)
+        if text.strip():
+            docs.append(Document(page_content=text, metadata={"source": path.stem}))
     for path in sorted(CORPUS_DIR.glob("*.md")):
+        if path.name in _EXCLUDE_MD:
+            continue
         text = path.read_text(encoding="utf-8")
         if text.strip():
             docs.append(Document(page_content=text, metadata={"source": _source_label(text, path.stem)}))
