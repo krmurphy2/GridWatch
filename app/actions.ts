@@ -22,6 +22,7 @@ import { lookupPassiveExposure } from "@/lib/internetdb";
 import { getSecurityFindings, saveSecurityFindings } from "@/lib/security-findings";
 import { buildHeuristicAssessment } from "@/lib/findings-summary";
 import { getFindingsAssessment } from "@/lib/findings-summary-client";
+import { screenChatMessage } from "@/lib/guardrails";
 import type { SecurityFindings } from "@/lib/types";
 
 const maxChatMessageLength = 2000;
@@ -139,15 +140,23 @@ export async function sendChatMessageAction(
 
     await appendChatMessage(user.id, "user", message);
 
-    const history = await getChatMessages(user.id);
-    const profile = await getLatestRouterProfile(user.id);
-    const reply = await getChatReply({
-      userId: user.id,
-      messages: history.slice(-chatHistoryLimit),
-      routerProfile: profile
-    });
+    // Cheap deterministic guardrails: injection/jailbreak, trivial filler, and
+    // obvious off-topic messages are answered with a canned reply here, skipping
+    // the agent + LLM entirely (no tokens spent).
+    const screened = screenChatMessage(message);
+    if (screened) {
+      await appendChatMessage(user.id, "assistant", screened.reply);
+    } else {
+      const history = await getChatMessages(user.id);
+      const profile = await getLatestRouterProfile(user.id);
+      const reply = await getChatReply({
+        userId: user.id,
+        messages: history.slice(-chatHistoryLimit),
+        routerProfile: profile
+      });
 
-    await appendChatMessage(user.id, "assistant", reply);
+      await appendChatMessage(user.id, "assistant", reply);
+    }
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not send the message." };
   }
@@ -202,7 +211,13 @@ export async function runSecurityChecksAction(
     // Deterministic assessment always available; the LLM improves on it when the
     // agent is reachable, otherwise we keep the heuristic (never blocks the scan).
     const heuristic = buildHeuristicAssessment(summaryInput);
-    const assessment = (await getFindingsAssessment(summaryInput, user.id, heuristic)) ?? heuristic;
+    // Cost guardrail: a clean scan (no CVEs, no exposed ports/vulns -> low risk)
+    // produces the same "all clear" summary from the heuristic as from the LLM, so
+    // skip the paid call entirely and only invoke the LLM when there's something to explain.
+    const assessment =
+      heuristic.riskLevel === "low"
+        ? heuristic
+        : (await getFindingsAssessment(summaryInput, user.id, heuristic)) ?? heuristic;
 
     const findings: SecurityFindings = {
       cve: summaryInput.cve,

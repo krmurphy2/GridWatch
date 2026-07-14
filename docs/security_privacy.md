@@ -25,6 +25,26 @@ for arbitrary internet targets.
 7. Passive intelligence lookups must use only approved user context, such as the
    verified public IP or an explicitly provided email/account identifier.
 
+## Pre-LLM Guardrails (deterministic)
+
+Cheap deterministic checks run in the server-action layer **before** the agent is
+called, so filtered requests cost zero LLM tokens and no agent round-trip
+(`lib/guardrails.ts`):
+
+1. **Injection/jailbreak** — chat messages matching prompt-injection or jailbreak
+   patterns get a canned refusal, never reaching the model.
+2. **Trivial input** — bare greetings/filler get a canned nudge instead of an LLM call.
+3. **Obvious off-topic** — a short, easily-extended keyword list (e.g. recipe,
+   homework, sports) returns a canned steer-back. Matched as whole words and kept
+   conservative so it does not decline security questions that merely mention a term.
+4. **Clean-scan cost skip** — when a security scan finds nothing actionable (low risk,
+   no CVEs, no exposed ports/vulns), the deterministic heuristic assessment is used
+   and the LLM summary call is skipped.
+
+These reduce cost and add a defensive layer; they are unit-tested
+(`lib/guardrails.test.ts`) and are a first pass, not a substitute for the agent's
+own scope/safety handling.
+
 ## External Exposure Scan Policy
 
 External exposure checks are allowed only when all conditions are true:
