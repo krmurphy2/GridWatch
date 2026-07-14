@@ -26,22 +26,24 @@ settings as production so the numbers reflect the shipped pipeline.
 - Both default to `gpt-5.1`; model calls use `max_completion_tokens` (gpt-5.x
   requirement). See `eval/README.md` for commands.
 
-## First Baseline (initial dense-retrieval run)
+## Baseline (official corpus, 15 curated questions)
 
-Captured on a small synthetic set as a smoke of the harness (grow the set for the
-formal baseline):
+Measured on the official reference corpus (9 industry PDFs) with a Ragas-generated,
+human-curated testset of 15 questions spanning everyday → technical (personas:
+"everyday home user" and "tech-curious home user"). Dense retrieval, grounded prompt:
 
 | Metric | Mean |
 | --- | --- |
-| Faithfulness | 0.44 |
-| Context Recall | 1.00 |
-| Answer Accuracy | 0.88 |
+| Faithfulness | 0.81 |
+| Context Recall | 0.63 |
+| Answer Accuracy | 0.65 |
 
-Early read: retrieval reliably surfaces the needed guidance (high recall), but
-**faithfulness is low** — answers include statements not tightly grounded in the
-retrieved context. That is the primary target for the Task 6 improvement work
-(advanced retrieval and/or a stricter answer prompt), and the harness will show
-whether a change moves it.
+This is a realistic baseline, unlike the earlier 16-chunk smoke where recall was a
+saturated 1.00. On the full corpus, **context recall ~0.63** shows retrieval is
+genuinely challenged (real room to improve), and answer accuracy ~0.65 reflects the
+harder, more diverse questions. Faithfulness is healthy (~0.81) thanks to the
+grounded prompt. (Earlier smoke, for reference: faithfulness 0.44 / recall 1.00 /
+accuracy 0.88 on 6 questions over the tiny authored corpus.)
 
 ## Evaluation Goals
 
@@ -149,36 +151,31 @@ numbers (`7547`), protocol names (`WPA3`, `TR-069`) — that pure embeddings can
 under-weight. BM25 matches those tokens exactly, and RRF lets a chunk that both
 retrievers agree on rise to the top.
 
-**Comparison (`run_eval.py --compare`, 6-case smoke set):**
+**Comparison (`run_eval.py --compare`, official corpus, 15 curated questions):**
 
 | Metric | Dense (baseline) | Hybrid (advanced) | Delta |
 | --- | --- | --- | --- |
-| Faithfulness | 0.611 | 0.498 | -0.113 |
-| Context Recall | 1.000 | 1.000 | +0.000 |
-| Answer Accuracy | 0.833 | 0.875 | +0.042 |
+| Faithfulness | 0.814 | 0.835 | +0.021 |
+| Context Recall | 0.630 | 0.603 | -0.026 |
+| Answer Accuracy | 0.650 | 0.667 | +0.017 |
 
-**Honest reading of these numbers:** hybrid did **not** clearly win here, and the
-reasons are about the test conditions, not the technique:
+**Honest reading:** on the realistic corpus, recall is no longer saturated (0.63,
+vs the earlier toy corpus's 1.00), so there was genuine headroom — but **hybrid did
+not meaningfully move it**. All three deltas (±0.02–0.03) are within judge noise, and
+hybrid actually nudged recall down slightly, consistent with RRF surfacing extra
+lexical matches that crowd out a semantically-relevant chunk at small `k`.
 
-1. **Recall is already saturated (1.00).** With a 16-chunk corpus, dense retrieval
-   already returns every relevant chunk, so there is no recall headroom for hybrid
-   to add — its main benefit is invisible at this scale.
-2. **The deltas are within judge noise.** Across repeated runs, dense faithfulness
-   alone varied 0.44 / 0.53 / 0.61; a -0.113 swing on 6 cases is not a reliable
-   regression.
-3. **The eval set doesn't stress hybrid's strength.** The 6 synthetic questions are
-   mostly conceptual; hybrid helps most on exact-token lookups the set under-samples.
+So hybrid ≈ dense on this question mix. That is a legitimate result, not a failure:
+the eval's everyday→technical questions are answered well by dense semantic search,
+and hybrid's edge (exact-token lookups like specific CVE ids or port numbers) is
+under-sampled here. Hybrid is kept on by default because it is strictly additive to
+the candidate pool and its downside is within noise; a targeted exact-token question
+set would be needed to demonstrate its benefit.
 
-**To make this comparison meaningful (next step):** grow the corpus so recall is no
-longer saturated, and expand the testset (~30-50 cases) including exact-token
-queries (specific CVE ids, ports, protocol names). Hybrid is kept on by default
-because it is strictly additive to the candidate pool (it can only surface extra
-lexical matches before fusion) and its only observed downside here is within noise.
-
-**Key takeaway:** on this corpus the retriever is not the bottleneck — **faithfulness
-is** (answers not fully grounded in retrieved context). That is a generation
-problem, addressed by the non-retrieval improvement below, not by swapping
-retrievers.
+**Key takeaway:** the retriever is not the bottleneck — **recall (~0.63) is the
+headroom**, and it's a retrieval-quality problem (chunking, corpus coverage,
+reranking) more than a dense-vs-hybrid one. The generation side is addressed by the
+non-retrieval improvement below.
 
 ## Non-Retrieval Improvement — Grounded Answer Prompt
 
@@ -189,23 +186,25 @@ answer prompt with a hard **no-outside-knowledge** boundary plus a
 support"). Applied to the eval answer prompt and mirrored in the production
 `findings_summary` and `security_chat` prompts.
 
-**Comparison (`run_eval.py --compare-prompt`, hybrid retrieval fixed, 6-case set):**
+**Comparison (`run_eval.py --compare-prompt`, official corpus, 15 curated questions,
+hybrid retrieval fixed):**
 
 | Metric | Baseline prompt | Grounded prompt | Delta |
 | --- | --- | --- | --- |
-| Faithfulness | 0.480 | 0.842 | +0.362 |
-| Context Recall | 1.000 | 1.000 | +0.000 |
-| Answer Accuracy | 0.833 | 0.833 | +0.000 |
+| Faithfulness | 0.427 | 0.812 | +0.386 |
+| Context Recall | 0.628 | 0.605 | -0.023 |
+| Answer Accuracy | 0.717 | 0.700 | -0.017 |
 
-**Result:** faithfulness improved **+0.36** — a large jump, well outside the judge
-noise band (~±0.1) even on this small set — with **no loss in answer accuracy**.
-So the answers became substantially better grounded in the retrieved guidance
-without becoming less correct or less helpful. This is the highest-leverage change
-found: the generation prompt, not the retriever, was the lever for faithfulness.
+**Result:** faithfulness improved **+0.39** (0.43 → 0.81) — a large jump, far outside
+the judge-noise band — with answer accuracy essentially unchanged (−0.017, within
+noise) and recall unaffected (a prompt change shouldn't move retrieval). So the
+answers became dramatically better grounded in the retrieved guidance without
+becoming less correct. This is the **highest-leverage change found**: the generation
+prompt, not the retriever, was the lever for faithfulness — and the result now holds
+on the realistic corpus, not just the earlier smoke (which showed +0.36 on 6 cases).
 
-Caveat: measured on 6 cases; re-run on a larger set for the formal figure, and
-watch that stricter grounding doesn't start refusing genuinely-useful general
-advice (the durable fix for that is broader corpus coverage, not prompt loosening).
+Caveat: watch that stricter grounding doesn't start refusing genuinely-useful general
+advice; the durable fix for that is broader corpus coverage, not prompt loosening.
 
 Other candidate improvements (not yet measured): stricter scan-target validation,
 better approval flow, confidence-labeled screenshot extraction, passive-intel

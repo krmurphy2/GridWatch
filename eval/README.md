@@ -16,16 +16,27 @@ uv sync
 cp .env.example .env   # then fill in OPENAI_API_KEY (+ LANGSMITH_API_KEY for push/pull)
 ```
 
+The curated dataset (`eval/testset.json`) is **committed** so it can be reviewed;
+`artifacts/` holds transient run outputs and is gitignored.
+
 ## 1. Generate a synthetic testset (with human review)
 
 ```bash
-uv run python generate_dataset.py --size 12      # -> artifacts/testset.json
-# review/edit artifacts/testset.json by hand, then:
-uv run python generate_dataset.py --push --dataset-name gridwatch-rag-eval
+uv run python generate_dataset.py --size 15      # -> eval/testset.json (consumer-facing docs)
+uv run python generate_dataset.py --size 15 --all-docs   # generate from the full corpus
+# review/edit eval/testset.json by hand, then push to LangSmith:
+uv run python generate_dataset.py --push                 # first upload
+uv run python generate_dataset.py --push --replace       # re-upload: overwrite the existing dataset
 ```
 
-Generation and upload are deliberately separate so synthetic questions are
-reviewed before they become the dataset.
+Ragas generates with two personas (everyday + tech-curious home user) and a
+single-hop-heavy query distribution. Generation and upload are deliberately
+separate so synthetic questions are human-reviewed before they become the dataset.
+
+`--push` creates the LangSmith dataset (`--dataset-name`, default
+`gridwatch-rag-eval`); it errors if that name already exists. Re-run with
+`--replace` to delete and recreate it so it matches the current `testset.json`
+(no duplicate examples) — do this **before** running experiments on the dataset.
 
 ## 2. Run the evaluation
 
