@@ -334,6 +334,33 @@ textarea {
   margin-bottom: 12px;
 }
 
+.raw-json {
+  margin-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding-top: 12px;
+}
+
+.raw-json > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #93c5fd;
+  list-style: revert;
+}
+
+.raw-json pre {
+  margin-top: 8px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
 .error {
   border: 1px solid rgba(251, 113, 133, 0.4);
   border-radius: 16px;
