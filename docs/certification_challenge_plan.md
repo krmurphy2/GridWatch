@@ -163,19 +163,44 @@ The planned improvement path is:
 
 ## Task 7: Next Steps
 
-The likely Demo Day path is to keep the explicit agent/tool architecture,
-trusted-source-first evidence model, external-first scan guardrails, and browser
-dashboard, while improving passive intelligence coverage and assessment memory.
-Local scanner packaging remains a post-MVP roadmap item.
+The POC is delivered: a deployed, external-first agentic RAG assistant (Vercel +
+LangGraph Platform + Neon + Qdrant Cloud + Vercel AI Gateway) with an
+official-source RAG corpus carrying per-chunk provenance, a Ragas evaluation
+harness, and deterministic pre-LLM guardrails. Priorities from here are driven by
+what the build and evaluation surfaced:
+
+1. **Improve retrieval quality.** The baseline shows context recall around 0.63 on
+   the official corpus — real headroom, and the larger lever than the dense-vs-hybrid
+   choice (which was a wash). Pursue advanced retrieval (reranking, chunk tuning) and
+   broader trusted-source coverage, measured against the committed evaluation set.
+   See `docs/evaluation_plan.md`.
+2. **Complete the deferred MVP scope.** Add the approved active public-IP exposure
+   scan (Evaluation Question 2) behind strict target-verification and
+   explicit-approval guardrails, and expand passive intelligence — public-IP
+   reputation and, with explicit account consent, breach exposure — all within the
+   existing "only the user's own verified assets" boundary.
+3. **Harden for real users.** Move uploaded router-image storage out of Postgres
+   into private object storage with a documented retention policy, and continue
+   secret hygiene. See `docs/deployment.md`.
+4. **Mature the evaluation.** Grow the test set, add explicit safety-boundary and
+   tool-selection cases, and wire the LangSmith experiment in as a regression gate so
+   retrieval and prompt changes are measured automatically.
+5. **Local device inventory (post-MVP).** The most-requested capability the
+   external-first MVP defers; it requires a local scanner or router integration and
+   its own privacy model.
+
+The core architecture — explicit agent/tool orchestration, official-source-first
+grounding, external-first scan guardrails, and a browser dashboard — stays; these
+steps deepen coverage and quality rather than change its shape.
 
 ## Final Submission Checklist
 
-- [ ] Public or shared repository link.
-- [ ] Live demo video under 10 minutes.
-- [ ] Written document addressing every challenge deliverable.
-- [ ] End-to-end prototype code.
-- [ ] Public deployed endpoint.
-- [ ] Evaluation dataset and harness.
-- [ ] Before/after improvement results.
-- [ ] Security/privacy notes and scan restrictions documented in
+- [x] Written document addressing every challenge deliverable (README + `docs/`).
+- [x] End-to-end prototype code.
+- [x] Public deployed endpoint (Vercel frontend/API + hosted LangGraph agent).
+- [x] Evaluation dataset and harness (`eval/`, `docs/evaluation_plan.md`).
+- [x] Before/after improvement results (dense-vs-hybrid + grounded-prompt tables).
+- [x] Security/privacy notes and scan restrictions documented in
   `docs/security_privacy.md`.
+- [ ] Public or shared repository link (share/make the repo accessible for grading).
+- [ ] Live demo video under 10 minutes (see `demo-ideas.md` for the planned flow).
