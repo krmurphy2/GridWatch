@@ -316,7 +316,7 @@ function SecurityChecksCard({ findings }: { findings: SecurityFindings | null })
                 The unprocessed results from the security tools (NIST NVD and Shodan
                 InternetDB) that GridWatch condenses into the plain-English assessment above.
               </p>
-              <pre>{JSON.stringify({ cve: findings.cve ?? null, passive: findings.passive ?? null }, null, 2)}</pre>
+              <pre>{JSON.stringify({ nist_nvd: findings.cve ?? null, shodan_internetdb: findings.passive ?? null }, null, 2)}</pre>
             </details>
             </div>
           </details>
