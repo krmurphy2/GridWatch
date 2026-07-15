@@ -309,6 +309,15 @@ function SecurityChecksCard({ findings }: { findings: SecurityFindings | null })
                 </ul>
               ) : null}
             </div>
+
+            <details className="raw-json">
+              <summary>Raw tool output (JSON)</summary>
+              <p className="muted">
+                The unprocessed results from the security tools (NIST NVD and Shodan
+                InternetDB) that GridWatch condenses into the plain-English assessment above.
+              </p>
+              <pre>{JSON.stringify({ cve: findings.cve ?? null, passive: findings.passive ?? null }, null, 2)}</pre>
+            </details>
             </div>
           </details>
         ) : null}
