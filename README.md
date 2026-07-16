@@ -76,7 +76,6 @@ flowchart TD
 | 7 | What security changes should I make first? | Combine screenshot evidence, scan results, passive intelligence, CVEs, and RAG guidance into prioritized remediation. |
 | 8 | What devices are currently on my network? | Explain that local device inventory is a post-MVP feature. |
 
-More detail: [Certification Challenge Plan](docs/certification_challenge_plan.md)
 
 ## Task 2: Proposed Solution
 
@@ -99,36 +98,63 @@ trusted RAG guidance, and plain-English remediation for home users.
 flowchart TD
     User[User browser: phone or laptop]
     UI[Web UI: dashboard, setup, chat]
-    API[Vercel server actions and API routes]
-    DB[Neon serverless Postgres: users, sessions, router profile, findings]
+
+    subgraph Vercel[Vercel: frontend + server actions]
+        API[Server actions / API routes + deterministic guardrails]
+    end
+
+    DB[(Neon Postgres: users, sessions, router profile, findings)]
     NVD[NIST NVD CVE API]
     InternetDB[Shodan InternetDB]
-    Extract[router_extraction graph]
-    Chat[security_chat graph]
-    Summary[findings_summary graph]
+
+    subgraph LG[LangGraph Platform - hosted agent, observed by LangSmith]
+        Extract[router_extraction graph]
+        Chat[security_chat graph]
+        Summary[findings_summary graph]
+    end
+
     Gateway[Vercel AI Gateway]
     LLM[OpenAI gpt-5.1]
-    Qdrant[Qdrant Cloud vector store: trusted security corpus]
+    Qdrant[(Qdrant Cloud: trusted security corpus)]
 
     User --> UI
     UI --> API
-    API --> DB
-    API --> NVD
-    API --> InternetDB
-    API --> Extract
-    API --> Chat
-    API --> Summary
+    API <--> DB
+
+    API -->|CVE lookup| NVD
+    API -->|passive exposure| InternetDB
+    NVD -->|CVE results| API
+    InternetDB -->|exposure results| API
+
+    API -->|screenshots| Extract
+    API -->|chat question| Chat
+    API -->|profile + CVE + exposure findings| Summary
+
     Extract --> Gateway
     Chat --> Gateway
     Summary --> Gateway
     Gateway --> LLM
+
     Chat --> Qdrant
     Summary --> Qdrant
+
+    Extract -->|router facts| API
+    Summary -->|assessment| API
 ```
 
-This shows what runs today. The Vercel API layer calls the read-only security tools
-(NIST NVD, Shodan InternetDB) directly and enforces the deterministic guardrails; the
-LangGraph graphs handle screenshot extraction, chat, and the RAG-grounded summary.
+This shows what runs today. The Vercel server-action layer is the orchestrator: it
+enforces the deterministic guardrails, calls the read-only security tools (NIST NVD,
+Shodan InternetDB) **directly**, and then invokes the hosted LangGraph agent graphs
+over HTTP. The three graphs run on **LangGraph Platform** (a separate hosted service,
+traced by LangSmith), and their LLM calls go out through the Vercel AI Gateway to
+OpenAI.
+
+Data flow for a security check: the API gets the CVE + passive-exposure results back
+from the tools, and — when the scan isn't clean — passes them (with the router
+profile) into the `findings_summary` graph, which returns a plain-English assessment.
+The API persists the tool results and the assessment to Neon. On a clean/low-risk
+scan the LLM call is skipped (a local heuristic produces the "all clear"). The
+`security_chat` and `findings_summary` graphs retrieve trusted guidance from Qdrant.
 Planned tools and integrations are tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ### Component Choices

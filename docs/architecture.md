@@ -29,32 +29,57 @@ human approval steps, and deployment model.
 flowchart TD
     User[User browser: phone or laptop]
     UI[Web UI: dashboard, setup, chat]
-    API[Vercel server actions and API routes]
-    DB[Neon serverless Postgres: users, sessions, router profile, findings]
+
+    subgraph Vercel[Vercel: frontend + server actions]
+        API[Server actions / API routes + deterministic guardrails]
+    end
+
+    DB[(Neon Postgres: users, sessions, router profile, findings)]
     NVD[NIST NVD CVE API]
     InternetDB[Shodan InternetDB]
-    Extract[router_extraction graph]
-    Chat[security_chat graph]
-    Summary[findings_summary graph]
+
+    subgraph LG[LangGraph Platform - hosted agent, observed by LangSmith]
+        Extract[router_extraction graph]
+        Chat[security_chat graph]
+        Summary[findings_summary graph]
+    end
+
     Gateway[Vercel AI Gateway]
     LLM[OpenAI gpt-5.1]
-    Qdrant[Qdrant Cloud vector store: trusted security corpus]
+    Qdrant[(Qdrant Cloud: trusted security corpus)]
 
     User --> UI
     UI --> API
-    API --> DB
-    API --> NVD
-    API --> InternetDB
-    API --> Extract
-    API --> Chat
-    API --> Summary
+    API <--> DB
+
+    API -->|CVE lookup| NVD
+    API -->|passive exposure| InternetDB
+    NVD -->|CVE results| API
+    InternetDB -->|exposure results| API
+
+    API -->|screenshots| Extract
+    API -->|chat question| Chat
+    API -->|profile + CVE + exposure findings| Summary
+
     Extract --> Gateway
     Chat --> Gateway
     Summary --> Gateway
     Gateway --> LLM
+
     Chat --> Qdrant
     Summary --> Qdrant
+
+    Extract -->|router facts| API
+    Summary -->|assessment| API
 ```
+
+The Vercel server-action layer is the orchestrator: it enforces guardrails, calls
+NIST NVD and Shodan InternetDB directly, and invokes the hosted LangGraph graphs over
+HTTP. The three graphs run on LangGraph Platform (traced by LangSmith) and reach
+OpenAI through the Vercel AI Gateway. The CVE + passive-exposure results flow back to
+the API, which feeds them (with the router profile) into `findings_summary` — when the
+scan isn't clean — and persists the tool results and assessment to Neon. On a
+clean/low-risk scan the LLM call is skipped in favor of a local heuristic.
 
 ## MVP Scope
 
