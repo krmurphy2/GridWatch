@@ -1,131 +1,212 @@
-# GridWatch — Certification Challenge Deliverables (Traceability)
+# AIE Certification Challenge Deliverables for GridWatch
 
-This document maps every deliverable in the AI Engineering Certification Challenge
-rubric to its exact location in this repository. It is the grader's index: each row
-points to the written artifact and, where applicable, the code that implements it.
+## Task 1 — Defining Problem, Audience, and Scope
 
-> **What is built today vs. planned.** GridWatch ships an external-first agentic RAG
-> assistant: router-screenshot extraction, read-only NIST NVD + Shodan InternetDB
-> checks, trusted-source RAG with provenance, plain-English assessments, chat, and
-> deterministic guardrails — all deployed and evaluated. Anything not yet built
-> (active scan, Tavily, AbuseIPDB, HIBP) is tracked in
-> [docs/roadmap.md](docs/roadmap.md). The architecture docs describe only what runs
-> today.
+### Problem Statement
 
-## Submission Links
+As more devices join the home network, security grows more complex — yet the average home user lacks the knowledge to tell whether their router, internet exposure, or configuration puts them at risk, or what to do about it.
 
-| Item | Link |
-| --- | --- |
-| Public repository | `https://github.com/krmurphy2/GridWatch` |
-| Deployed public endpoint | **⟨fill in Vercel production URL⟩** |
-| 10-minute demo video (Loom) | **⟨fill in Loom link⟩** |
-| LangSmith project / eval experiments | **⟨fill in LangSmith project link⟩** |
-| This traceability document | [deliverables.md](deliverables.md) |
+### Audience
 
----
+The average home users setups up their router and only thinks about it when the WiFi is down. If they are lucky it came with secure defaults and it automatically updates. Today's software world is moving at faster paces that has full security teams struggling to detect vulnerabilities at work with teams to get them patched in a timely manner. How well are third party home networking vendors going to keep up with AI attackers scanning for new zero days?
 
-## Task 1 — Defining Problem, Audience, and Scope (1 pt)
+At the same time, the smart home or IoT devices market are becoming more and more common with no solid tracking on how those devices are exposing your home to risk. What would happen if a router was compromised on a home device with a smart lock on the front door? It is time to expand common industry security tooling to the home user so they have visibility and guidance to keeping their home secure.
 
-| Rubric deliverable | Where it's addressed |
-| --- | --- |
-| 1-sentence problem statement | [README.md → "1-Sentence Problem Statement"](README.md#1-sentence-problem-statement) |
-| 1–2 paragraphs on why it's a problem for the specific user | [README.md → "Audience"](README.md#audience) and [README.md → "Why This Is a Problem"](README.md#why-this-is-a-problem) |
-| Workflow diagram of how the user solves this today | [README.md → "Current Workflow"](README.md#current-workflow) (mermaid) |
+### Current Workflow
 
-Supporting: [docs/certification_challenge_plan.md → Task 1](docs/certification_challenge_plan.md).
+I would call this a very optimistic workflow assuming that the home user knows all the sources to pull the data. Most likely they just setup router and move on with life.
 
----
+```mermaid
+flowchart TD
+    Start[User worries about home network security]
+    Router[Open router app or admin page]
+    Search[Search web for router model, settings, ports, or CVEs]
+    Sources[Read vendor pages, forums, CVE pages, and security articles]
+    Compare[Try to compare advice to their own router settings]
+    Decide[Guess which changes matter most]
+    Change[Attempt a router or Wi-Fi configuration change]
+    Unknown[Hopes for the best]
 
-## Task 2 — Propose a Solution (1 pt)
+    Start --> Router
+    Router --> Search
+    Search --> Sources
+    Sources --> Compare
+    Compare --> Decide
+    Decide --> Change
+    Change --> Unknown
 
-| Rubric deliverable | Where it's addressed |
-| --- | --- |
-| 1-sentence solution description | [README.md → "1-Sentence Solution Statement"](README.md#1-sentence-solution-statement) |
-| Infrastructure diagram of the stack | [README.md → "Infrastructure Diagram"](README.md#infrastructure-diagram) and [docs/architecture.md → "High-Level Infrastructure"](docs/architecture.md#high-level-infrastructure) (identical, "as-built" mermaid: Vercel orchestrator, LangGraph Platform agent, NVD/InternetDB tools, AI Gateway → OpenAI, Qdrant) |
-| Agent workflow diagram | [README.md → "Agent Workflow"](README.md#agent-workflow) and [docs/architecture.md → "Agent Workflow"](docs/architecture.md#agent-workflow) |
-| Tooling stack / component choices | [README.md → "Component Choices"](README.md#component-choices); [docs/model_choices.md](docs/model_choices.md) |
+    Search -. slow and repetitive .-> Sources
+    Compare -. error-prone and technical .-> Decide
+    Change -. lacking validation .-> Unknown
+```
 
-Stack (as built): OpenAI gpt-5.1 via **Vercel AI Gateway**; **LangGraph** orchestration
-(3 hosted graphs); **Qdrant Cloud** vector store; **Neon** Postgres; **LangSmith**
-tracing/evals; **RAGAS** evaluation; Next.js browser UI on **Vercel**.
+### Evaluation Questions
 
----
-
-## Task 3 — Dealing with the Data (5 pts)
-
-| Rubric deliverable | Where it's addressed | Code |
+| # | User Question | Expected System Behavior |
 | --- | --- | --- |
-| Describe all data sources & external APIs and their use | [README.md → "Data Sources"](README.md#data-sources) and [README.md → "External APIs"](README.md#external-apis); [docs/data_strategy.md](docs/data_strategy.md); [docs/external_intelligence_sources.md](docs/external_intelligence_sources.md) | NVD: [lib/nvd.ts](lib/nvd.ts); InternetDB: [lib/internetdb.ts](lib/internetdb.ts); RAG corpus (9 official PDFs + manifest): [agent/corpus/](agent/corpus/) |
-| Default chunking strategy + justification | [README.md → "Default Chunking Strategy"](README.md#default-chunking-strategy); [docs/rag_scoping.md](docs/rag_scoping.md) | `RecursiveCharacterTextSplitter`, `chunk_size=900`, `chunk_overlap=120`, markdown-aware separators — [agent/rag.py:39-40](agent/rag.py#L39-L40) (constants), [agent/rag.py:157-165](agent/rag.py#L157-L165) (splitter); PDF cleanup `_clean_pdf_text` and provenance metadata `_metadata_for` in [agent/rag.py](agent/rag.py) |
-
-Corpus provenance (source URL, title, publisher, publish date) is manifest-driven:
-[agent/corpus/rag_corpus_reference.csv](agent/corpus/rag_corpus_reference.csv), loaded
-by `_manifest()` in [agent/rag.py](agent/rag.py). Ingestion: [agent/ingest.py](agent/ingest.py).
+| 1 | Can you review my router screenshots? | Extract router model, firmware, and configuration clues from uploaded evidence. |
+| 2 | Is my home network exposed to the internet? | Ask approval, verify the user's router public IP, scan only that IP, and explain exposed services. |
+| 3 | What do these open ports mean? | Use scan results and RAG guidance to explain service risk in plain English. |
+| 4 | Is my router firmware vulnerable? | Query NVD and trusted sources using extracted router model and firmware details. |
+| 5 | Has my public IP appeared in security intelligence? | Use approved passive external intelligence sources and explain confidence and limitations. |
 
 ---
 
-## Task 4 — Build End-to-End Agentic RAG Prototype (15 pts)
+## Task 2 — Propose a Solution
 
-| Rubric deliverable | Location |
-| --- | --- |
-| Deployed functional prototype (frontend on Vercel) | Deployed URL above. Next.js App Router UI: [app/](app/) — dashboard [app/dashboard/page.tsx](app/dashboard/page.tsx), setup [app/setup/page.tsx](app/setup/page.tsx), chat [app/chat/page.tsx](app/chat/page.tsx), auth [app/auth-forms.tsx](app/auth-forms.tsx) |
-| Backend / server actions (orchestrator) | [app/actions.ts](app/actions.ts) — `runSecurityChecksAction` runs NVD + InternetDB, feeds `findings_summary`, persists to Neon ([app/actions.ts:180-236](app/actions.ts#L180-L236)); API routes [app/api/](app/api/) |
-| Agentic RAG graphs (LangGraph) | Extraction [agent/router_extraction.py](agent/router_extraction.py); chat [agent/security_chat.py](agent/security_chat.py); grounded summary [agent/findings_summary.py](agent/findings_summary.py); graph registry [agent/langgraph.json](agent/langgraph.json) |
-| RAG retrieval | [agent/rag.py](agent/rag.py) — `retrieve()` / `retrieve_security_guidance()` over Qdrant |
-| Security tools | NVD CVE lookup [lib/nvd.ts](lib/nvd.ts); passive exposure [lib/internetdb.ts](lib/internetdb.ts) |
-| Deterministic guardrails (pre-LLM) | [lib/guardrails.ts](lib/guardrails.ts) (`screenChatMessage`, injection/off-topic/trivial); clean-scan LLM skip [app/actions.ts:217-220](app/actions.ts#L217-L220) |
-| Graph clients (Vercel → LangGraph, per-user threads) | [lib/agent-client.ts](lib/agent-client.ts), [lib/chat-client.ts](lib/chat-client.ts), [lib/findings-summary-client.ts](lib/findings-summary-client.ts) |
-| Memory / persistence | Neon schema & access [lib/db.ts](lib/db.ts), [lib/router-profile.ts](lib/router-profile.ts), [lib/security-findings.ts](lib/security-findings.ts); design [docs/architecture.md → "Memory Design"](docs/architecture.md#memory-design) |
-| Deployment config | Web: [vercel.json](vercel.json); agent: [agent/langgraph.json](agent/langgraph.json); details [docs/deployment.md](docs/deployment.md) |
+GridWatch is a browser-based AI assistant that combines router evidence upload, approved public-IP exposure scanning, passive external intelligence, CVE lookup, trusted RAG guidance, and plain-English remediation for home users.
+
+### Infrastructure Diagram
+
+```mermaid
+flowchart TD
+    User[User browser: phone or laptop]
+    UI[Web UI: dashboard, setup, chat]
+
+    subgraph Vercel[Vercel: frontend + server actions]
+        API[Server actions / API routes + deterministic guardrails]
+    end
+
+    DB[(Neon Postgres: users, sessions, router profile, findings)]
+    NVD[NIST NVD CVE API]
+    InternetDB[Shodan InternetDB]
+
+    subgraph LG[LangGraph Platform - hosted agent, observed by LangSmith]
+        Extract[router_extraction graph]
+        Chat[security_chat graph]
+        Summary[findings_summary graph]
+    end
+
+    Gateway[Vercel AI Gateway]
+    LLM[OpenAI gpt-5.1]
+    Qdrant[(Qdrant Cloud: trusted security corpus)]
+
+    User --> UI
+    UI --> API
+    API <--> DB
+
+    API -->|CVE lookup| NVD
+    API -->|passive exposure| InternetDB
+    NVD -->|CVE results| API
+    InternetDB -->|exposure results| API
+
+    API -->|screenshots| Extract
+    API -->|chat question| Chat
+    API -->|profile + CVE + exposure findings| Summary
+
+    Extract --> Gateway
+    Chat --> Gateway
+    Summary --> Gateway
+    Gateway --> LLM
+
+    Chat --> Qdrant
+    Summary --> Qdrant
+
+    Extract -->|router facts| API
+    Summary -->|assessment| API
+```
+
+### Component Choices
+
+| Component | Choice | Why |
+| --- | --- | --- |
+| LLM | OpenAI (gpt-5.1) | I am limited to OpenAI models as that is what my work has given me to work with right now. I specifically went with a slightly older model to simulate the behavior of security information being out of date quickly.  |
+| LLM gateway | Vercel AI Gateway | We used this during the course and it was easy to built in the future versatility for switching out models. |
+| Agent orchestration | LangGraph | This simplified hosting and monitoring the agent. I would like to test deploying this stack in AWS which is my daily environment but I was afraid of getting caught up in AWS minutiae in a small time frame. |
+| Embedding model | OpenAI text-embedding-3-small | Chosen based off my limited exposures and choosing to use OpenAI. |
+| Vector database | Qdrant (Qdrant Cloud free tier) | This seems like a nature expansion of moving from the in memory Qdrant to support an ephemeral agent that would need to persist knowledge across sessions. |
+| Monitoring | LangSmith for the hosted graph | Lives right along side my agent deployment so I can minimize jumping between tools |
+| Evaluation framework | RAGAS plus custom LLM-as-judge checks | Covers retrieval quality, grounded answers, and safety behavior. |
+| User interface | Browser dashboard and chat | I am not a UI developer so this seems like the easiest to get something working |
+| Deployment | Vercel frontend/API plus hosted LangSmith deployment | Allowed for easy local testing and simple deployment without setting up full CI/CD workflows |
+| Memory | HTTP-only sessions plus Neon serverless Postgres assessment memory | Stores users, sessions, extracted router facts, scan approval, and retained uploads. |
+
+### Agent Workflow
+
+```mermaid
+flowchart TD
+    Input[User asks a security question or uploads router evidence]
+    Classify[Agent classifies intent and required evidence]
+    NeedApproval{Needs scan or sensitive lookup?}
+    Approval[Ask user for explicit approval]
+    Evidence[Extract or retrieve assessment evidence]
+    RAG[Retrieve trusted guidance]
+    Tools[Call approved tools]
+    Synthesize[Combine evidence, RAG, and tool output]
+    Output[Return plain-English risk, evidence, and next steps]
+    Refuse[Refuse unsafe or unauthorized request]
+
+    Input --> Classify
+    Classify --> NeedApproval
+    NeedApproval -->|Yes| Approval
+    Approval -->|Approved| Evidence
+    Approval -->|Not approved| Output
+    NeedApproval -->|No| Evidence
+    Evidence --> RAG
+    Evidence --> Tools
+    Tools --> Synthesize
+    RAG --> Synthesize
+    Synthesize --> Output
+    Classify -->|Unsafe target| Refuse
+```
+
+---
+
+## Task 3 — Dealing with the Data 
+
+For the default chunking strategy I chose `RecursiveCharacterTextSplitter` with `chunk_size=900` and `chunk_overlap=120`. I tried to go generic without making things too big. My RAG data is mostly technical documentation that comes from multiple government and industry sources, so I wanted to allow the chunks to be flexible enough to capture context while still being relevant.
+
+The files that make up my main RAG datasources are stored at [agent/corpus/](agent/corpus) including a CSV file that I used to capture relevant metadata I used as a part of the loading process. These files are sources I pulled from that I feel represent a cross reference for the technical home user that they were unlikely to know about or evaluate. I manually triggered their upload with [agent/ingest.py](agent/ingest.py) which is documented in [docs/deployment.md/Updating the RAG corpus](docs/deployment.md#updating-the-rag-corpus).
+
+---
+
+## Task 4 — Build End-to-End Agentic RAG Prototype 
+
+Deployment URL: https://gridwatch-eosin.vercel.app/
+
+Setting up a user provides a token so I don't have random users trying to sign up for the service. This will be added to the homework form under `Is there anything else you'd like to share with us?`
 
 ---
 
 ## Task 5 — Evals (2 pts)
 
-| Rubric deliverable | Where it's addressed |
-| --- | --- |
-| Test dataset (synthesized/assembled) | Committed golden set [eval/testset.json](eval/testset.json); generator with personas + query distribution [eval/generate_dataset.py](eval/generate_dataset.py) |
-| Evaluation harness relevant to the problem space | [eval/run_eval.py](eval/run_eval.py) (RAGAS faithfulness / context recall / answer accuracy, LangSmith `aevaluate`), shared build in [eval/eval_common.py](eval/eval_common.py); how-to [eval/README.md](eval/README.md); design [docs/evaluation_plan.md](docs/evaluation_plan.md) |
-| Conclusions about pipeline performance | [docs/evaluation_plan.md → "Baseline"](docs/evaluation_plan.md#baseline-official-corpus-15-curated-questions) (faithfulness 0.81 / context recall 0.63 / answer accuracy 0.65) and [docs/evaluation_plan.md → "Conclusions To Produce"](docs/evaluation_plan.md) |
+Synthetic Dataset: [eval/testset.json](eval/testset.json) 
+
+Evaluation: [eval/run_eval.py](eval/run_eval.py)
+
+Two modes: 
+- Default mode runs a LangSmith experiment on the dataset that was uploaded to LangSmith, 
+- --local mode scores the local testset.json instead and writes a table to artifacts/. Both modes use the same Ragas metrics: Faithfulness, Context Recall, Answer Accuracy.
+
+Based off my initial results I did a bit of curating and removed some lower scored values that were caused by questions that were way off. When reviewing the dataset I can tell that the more technical questions were hitting the RAG data better while broader home user questions are less grounded. I would like to build on this in future versions either by adding less technical corpus or by testing different embeddings and chunk settings.
 
 ---
 
-## Task 6 — Improving the Prototype / Advanced Retrieval (6 pts)
+## Task 6 — Improving the Prototype / Advanced Retrieval
 
-| Rubric deliverable | Where it's addressed |
-| --- | --- |
-| Advanced retrieval technique + justification | **Hybrid retrieval** — dense + BM25 fused with Reciprocal Rank Fusion (`RRF_CONSTANT=60`, `FIRST_STAGE_K=8`), default on. Code: [agent/rag.py:222-254](agent/rag.py#L222-L254) (`_rrf_fuse`, `retrieve`), BM25 index [agent/rag.py:202-216](agent/rag.py#L202-L216). Rationale (exact-term recall for CVE IDs / ports / model names): [docs/rag_scoping.md](docs/rag_scoping.md), [docs/evaluation_plan.md → "Task 6 Improvement"](docs/evaluation_plan.md#task-6-improvement--advanced-retriever-hybrid) |
-| Performance comparison table vs. original RAG | Dense vs. hybrid table: [docs/evaluation_plan.md](docs/evaluation_plan.md#task-6-improvement--advanced-retriever-hybrid) (faithfulness 0.814→0.835, recall 0.630→0.603, accuracy 0.650→0.667) |
-| Meaningful improvement backed by eval evidence | **Non-retrieval improvement — grounded answer prompt**: faithfulness **0.427 → 0.812 (+0.386)**. Table + analysis: [docs/evaluation_plan.md → "Non-Retrieval Improvement"](docs/evaluation_plan.md#non-retrieval-improvement--grounded-answer-prompt). Grounded prompt in [agent/findings_summary.py](agent/findings_summary.py); A/B via `--compare` / `--compare-prompt` in [eval/run_eval.py](eval/run_eval.py) |
+### Advanced retrieval technique + why it fits this use case
+
+The original RAG implementation mirrored our class beginnings of dense sementic search. To improve the results I implemented hybrid retrieval which combines dense (semantic) search with BM25 lexical search. I felt like this was a good fit because the many technical queries need a lexical search, for instance when the tool is looking CVE references. So I beleived including a BM25 search as part of the hyrbid would improve the results.
+
+### How it compares to the original (dense) RAG
+
+Measured with `run_eval.py --compare` over the official corpus (15 curated questions):
+
+| Metric | Dense (baseline) | Hybrid (advanced) | Delta |
+| --- | --- | --- | --- |
+| Faithfulness | 0.814 | 0.835 | +0.021 |
+| Context Recall | 0.630 | 0.603 | -0.026 |
+| Answer Accuracy | 0.650 | 0.667 | +0.017 |
 
 ---
 
 ## Task 7 — Next Steps for Demo Day (2 pts)
 
-| Rubric deliverable | Where it's addressed |
-| --- | --- |
-| Reflection on implementation decisions / Demo Day plan | [docs/certification_challenge_plan.md → Task 7](docs/certification_challenge_plan.md); forward roadmap [docs/roadmap.md](docs/roadmap.md) |
+As part of the final demo day product, I want to focus on getting the chat guidance more grounded in the RAG data. I want to add a "Show Sources" button that will display the sources that were used to generate the answer. This will help to demonstrate the grounding of the answers and provide transparency to the user.
 
----
+I also want to add a couple more public tools to the findings to round out out the security view. While more features could be a distraction, I want to make sure to provide more context so the LLM can give the user better guidance.
 
-## Final Submission (20 pts)
+I also want to test out performance changes made by using more updated models, different embeddings and chunking strategies.
 
-| Rubric deliverable | Location |
-| --- | --- |
-| 10-minute Loom demo video | **⟨fill in Loom link⟩** (script: internal demo notes) |
-| Written document addressing all deliverables | This file + [README.md](README.md) (Tasks 1–3 entry point) + [docs/](docs/) |
-| All relevant code | This repository: web app [app/](app/) / [lib/](lib/); agent [agent/](agent/); evals [eval/](eval/) |
-| Public deployed endpoint | **⟨fill in Vercel production URL⟩** |
+[docs/roadmap.md](docs/roadmap.md)
 
----
-
-## Supporting Documentation Index
-
-- [docs/architecture.md](docs/architecture.md) — infrastructure, agent workflow, tool boundaries, memory, deployment
-- [docs/model_choices.md](docs/model_choices.md) — LLM + gateway reasoning
-- [docs/data_strategy.md](docs/data_strategy.md) / [docs/rag_scoping.md](docs/rag_scoping.md) — data + RAG design
-- [docs/external_intelligence_sources.md](docs/external_intelligence_sources.md) — passive-intel sources & privacy boundaries
-- [docs/evaluation_plan.md](docs/evaluation_plan.md) — eval harness, metrics, before/after results
-- [docs/security_privacy.md](docs/security_privacy.md) — scan restrictions & data handling
-- [docs/deployment.md](docs/deployment.md) / [docs/local_development.md](docs/local_development.md) — deploy & local dev
-- [docs/roadmap.md](docs/roadmap.md) — planned work beyond the POC
