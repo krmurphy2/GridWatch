@@ -32,11 +32,12 @@ export function parseInternetDbResponse(ip: string, payload: unknown): PassiveEx
 }
 
 // Passively look up what public internet scanners (Shodan InternetDB) already
-// observe for a verified public router IP. Read-only and free (no API key).
+// observe for a public router IP. Read-only and free (no API key).
 //
-// SAFETY: we only ever query the user's own verified public IP. Private/LAN and
-// non-public addresses are rejected here as a hard guard so we never leak
-// internal topology to a third-party service.
+// SAFETY: private/LAN and non-public addresses are rejected here as a hard guard so
+// we never send internal topology to a third-party service. Note: this does NOT yet
+// verify the public IP belongs to the user — any public IP in the profile is queried
+// (ownership verification is planned; see docs/roadmap.md).
 export async function lookupPassiveExposure(ip: string | null | undefined): Promise<PassiveLookupResult> {
   if (!ip) {
     return {

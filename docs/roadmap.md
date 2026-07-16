@@ -14,6 +14,9 @@ Planned additions:
 - **Approved active public-IP exposure scan** — an actual port/service scan of the
   user's own verified router IP, behind strict target-verification and explicit
   approval. Higher-risk than the passive checks, so it needs its own guardrails.
+- **Verify public-IP ownership** — today the passive InternetDB lookup only rejects
+  private/LAN addresses; it doesn't confirm the public IP belongs to the user. Add an
+  ownership/verification step (and an explicit approval gate) before any IP lookup.
 - **Tavily web search** — fresh vendor guidance / source discovery when the curated
   corpus and NVD are insufficient.
 - **AbuseIPDB** — public-IP reputation context (verified public IP only, never a
@@ -40,7 +43,8 @@ Planned additions:
 - **Review & acknowledge posture findings (port forwarding first)** — let the user
   mark a finding (e.g. an intentional port-forwarding rule) as approved/acknowledged
   so it's silenced from "action needed," with the acknowledgement retained in
-  assessment memory. Generalize to any posture finding.
+  assessment memory. Generalize to any posture finding, and track **remediation
+  status** over time (fixed / acknowledged / outstanding).
 
 ## Privacy & data handling (before real users)
 

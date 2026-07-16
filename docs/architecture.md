@@ -130,58 +130,70 @@ flowchart TD
 
 ## Human Approval Gates
 
-The agent must ask for explicit user approval before:
+Today the security checks are **read-only and user-initiated**: the user deliberately
+uploads a screenshot and clicks "Run checks" to trigger the NVD + passive InternetDB
+lookups. Nothing performs an active scan or a disruptive change, so no additional
+in-app approval step is enforced yet.
 
-1. Running an external exposure scan.
-2. Uploading or processing router screenshots that may contain sensitive network
-   details.
-3. Querying third-party intelligence services with the user's public IP, email,
-   domain, router model, or firmware when not strictly necessary for the
-   user-requested task.
-4. Suggesting disruptive remediation steps such as factory reset, firmware flash,
-   or router configuration changes that could break connectivity.
+Explicit approval gates — before an **active** exposure scan and before sensitive
+third-party lookups (breach/reputation services) — are part of the planned
+active-scan work in `docs/roadmap.md`.
 
 ## Scan Safety Restrictions
 
-The agent is prohibited from open internet scans except for the user's own
-verified router external IP address when the user explicitly approves the scan.
+**Today (read-only only):** the only IP-based tool is the passive Shodan InternetDB
+lookup. It rejects private/LAN and non-public addresses (`isValidPublicIp` in
+`lib/ip.ts`) and reads Shodan's already-published catalog — it does not actively scan
+the target. It runs against the public IP stored in the user's profile.
 
-Implementation requirements:
+Known limits of the current build:
 
-1. The cloud API must reject arbitrary public IP, domain, or CIDR scan targets.
-2. The only eligible active-scan target is the verified public IP associated with
-   the user's assessment session.
-3. The system must not scan third-party public IPs or domains provided in
-   free-form chat.
-4. The agent must explain why it refused any unsafe scan request.
-5. External scans should be limited to low-intensity exposure checks suitable for
-   confirming open ports and common service banners on the user's router, not
-   broad vulnerability probing.
+1. It does **not** yet verify that the public IP belongs to the user — any public IP
+   in the profile is accepted (ownership verification is a planned guardrail).
+2. There is **no active port/service scan**, and therefore none of the active-scan
+   approval or target-verification controls exist yet.
+3. Chat cannot trigger any scan — its only tool is the RAG retriever.
+
+**Planned** (see `docs/roadmap.md`): an approved active exposure scan restricted to
+the user's verified router IP, with explicit approval, target verification, rejection
+of arbitrary public IP/domain/CIDR targets, refusal-with-explanation for unsafe
+requests, and low-intensity checks only.
 
 ## Tooling Boundaries
 
-| Tool | Runs Where | Allowed Scope | Notes |
+| Tool | Status | Allowed Scope | Notes |
 | --- | --- | --- | --- |
-| Screenshot/evidence extractor | Cloud | User-uploaded router screenshots and form fields | Extracts router model, firmware, and configuration clues. |
-| External exposure scan | Cloud | Verified router public IP only | Requires approval and strict target validation. |
-| NVD CVE lookup | Cloud | Router model, firmware, CPE, or CVE ID | Authoritative vulnerability source. |
-| Tavily search | Cloud | Public web search | Used for current vendor guidance and source discovery. |
-| Passive external intelligence | Cloud | Verified public IP or user-approved account/domain context | Supports enrichment from sources such as Shodan, InternetDB, AbuseIPDB, and HaveIBeenPwned. |
-| RAG retriever | Cloud | Trusted project corpus | Used for remediation, port explanations, and plain-English guidance. |
+| Screenshot/evidence extractor | Built | User-uploaded screenshots + form fields | `router_extraction` graph; extracts model, firmware, config clues. |
+| NIST NVD CVE lookup | Built | Router vendor/model keyword | Read-only; called by the API layer. |
+| Shodan InternetDB passive exposure | Built | Public IP in the profile (private/LAN rejected) | Read-only passive catalog lookup; ownership not yet verified. |
+| RAG retriever | Built | Trusted project corpus (Qdrant) | Remediation, port, and CVE explanation. |
+| Active exposure scan | Planned | Verified router IP only | Approval + target validation — `docs/roadmap.md`. |
+| Tavily search | Planned | Public web search | `docs/roadmap.md`. |
+| AbuseIPDB / HaveIBeenPwned | Planned | Verified IP / consented account context | `docs/roadmap.md`. |
 
 ## Memory Design
 
-The MVP should have two memory layers:
+Two memory layers exist today:
 
-1. **Session memory:** Chat history, active task context, uploaded evidence
-   summaries, and recent tool outputs.
-2. **Assessment memory:** User-approved router details, firmware version,
-   external exposure findings, passive intelligence findings, acknowledged CVEs,
-   and previous remediation status.
+1. **Session / conversation memory:** per-user chat history in Neon
+   (`chat_messages`), plus HTTP-only session cookies. The LangGraph agent also keeps
+   per-user thread state (a deterministic thread + namespace per user) so runs never
+   mix across users.
+2. **Assessment memory:** the router profile (vendor, model, firmware, settings,
+   public IP, scan-approval flags, uploaded evidence) in `router_profiles`, and the
+   latest CVE + passive-exposure findings plus the generated assessment in
+   `security_findings`.
 
-Sensitive values should be minimized. Where possible, store normalized evidence
-summaries instead of raw screenshots, complete public-IP history, or full tool
-payloads.
+Current data-handling reality and its gaps:
+
+- Uploaded screenshots are stored **raw** (base64) in Postgres, not as normalized
+  summaries.
+- Findings store the full normalized tool results (CVE list + exposure).
+- There is no acknowledged-CVE or remediation-status tracking yet.
+
+Minimizing stored sensitive data — normalized summaries instead of raw screenshots,
+moving images to private object storage, and acknowledged-finding / remediation-status
+tracking — is planned in `docs/roadmap.md`.
 
 ## Deployment Model
 
