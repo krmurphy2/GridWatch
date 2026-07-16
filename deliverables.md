@@ -210,3 +210,10 @@ I also want to test out performance changes made by using more updated models, d
 
 [docs/roadmap.md](docs/roadmap.md)
 
+### Loom Links
+
+I couldn't get a 10 minute recording so I broke this up into two 5 minute recordings. I apologize for the inconvenience.
+
+[Gridwatch Demo 1: Router Scan and Vulnerability Check](https://www.loom.com/share/19322e2426534a2d940e5d5e076931e6)
+
+[GridWatch Demo Part 2: Bad Scan Results](https://www.loom.com/share/c0a44c9ace7047ec8822ae1292bb061f)
