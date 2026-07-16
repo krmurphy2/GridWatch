@@ -28,45 +28,32 @@ human approval steps, and deployment model.
 ```mermaid
 flowchart TD
     User[User browser: phone or laptop]
-    UI[Web UI: dashboard and chat]
-    Upload[Router screenshots and setup details]
+    UI[Web UI: dashboard, setup, chat]
     API[Vercel server actions and API routes]
-    DB[Neon serverless Postgres]
-    Extract[Hosted router extraction graph]
-    Agent[LangGraph agent]
-    Gateway[LLM gateway]
-    LLM[Anthropic Claude]
-    Memory[Session and assessment memory]
-    VectorDB[Vector database]
-    Docs[Trusted RAG corpus]
+    DB[Neon serverless Postgres: users, sessions, router profile, findings]
     NVD[NIST NVD CVE API]
-    Tavily[Tavily search]
-    ExposureScan[Approved public IP exposure scan]
-    PassiveIntel[Passive external intelligence]
-    Shodan[Shodan or InternetDB]
-    Abuse[AbuseIPDB]
-    HIBP[HaveIBeenPwned]
+    InternetDB[Shodan InternetDB]
+    Extract[router_extraction graph]
+    Chat[security_chat graph]
+    Summary[findings_summary graph]
+    Gateway[Vercel AI Gateway]
+    LLM[OpenAI gpt-5.1]
+    Qdrant[Qdrant Cloud vector store: trusted security corpus]
 
     User --> UI
-    UI --> Upload
     UI --> API
-    Upload --> API
     API --> DB
+    API --> NVD
+    API --> InternetDB
     API --> Extract
-    Extract --> Agent
-    API --> Agent
-    Agent --> Gateway
+    API --> Chat
+    API --> Summary
+    Extract --> Gateway
+    Chat --> Gateway
+    Summary --> Gateway
     Gateway --> LLM
-    Agent --> Memory
-    Agent --> VectorDB
-    VectorDB --> Docs
-    Agent --> NVD
-    Agent --> Tavily
-    Agent --> ExposureScan
-    Agent --> PassiveIntel
-    PassiveIntel --> Shodan
-    PassiveIntel --> Abuse
-    PassiveIntel --> HIBP
+    Chat --> Qdrant
+    Summary --> Qdrant
 ```
 
 ## MVP Scope
@@ -85,12 +72,11 @@ only approved external checks against the user's verified router public IP.
 3. The user uploads router screenshots or enters router details.
 4. The hosted LangGraph extraction graph extracts structured facts such as router vendor, model, firmware, remote administration status, UPnP clues, port forwarding clues, and public IP context when available.
 5. Neon serverless Postgres stores users, sessions, retained router evidence, extracted fields, missing fields, and scan approval state.
-6. The user explicitly approves a public IP exposure scan.
-7. The backend verifies that the scan target is the user's router external IP.
-8. The backend performs a limited external scan for exposed ports and services.
-9. The agent enriches the result with passive external intelligence.
-10. The agent checks NVD and trusted sources for router model and firmware CVEs.
-11. The agent synthesizes a plain-English risk report and prioritized remediation checklist.
+6. The user runs read-only security checks from the dashboard.
+7. The Vercel API layer calls NIST NVD (CVE lookup by router vendor/model) and Shodan InternetDB (passive exposure for the verified public IP) directly; private/LAN addresses are rejected. An approved *active* port/service scan is planned — see `docs/roadmap.md`.
+8. Deterministic guardrails run in the API layer before any model call: they block injection/off-topic/trivial chat input, and skip the LLM summary on a clean scan to save cost.
+9. The `findings_summary` graph, grounded in the trusted RAG corpus in Qdrant, synthesizes a plain-English risk report and prioritized remediation (a deterministic heuristic is the fallback).
+10. The `security_chat` graph answers follow-up questions, calling the RAG retriever tool for grounded guidance.
 
 ## Deferred Local Connectivity
 
@@ -100,6 +86,11 @@ overlay connectivity. These are intentionally outside the MVP to keep the projec
 focused on the AI service, RAG, tool orchestration, and evaluation requirements.
 
 ## Agent Workflow
+
+> This is the conceptual assessment flow. In the build today, the read-only checks
+> (NVD, Shodan InternetDB) are orchestrated by the Vercel API layer rather than the
+> model, and the `Scan` (active port scan) and `Search` (Tavily) steps are planned,
+> not built — see `docs/roadmap.md`.
 
 ```mermaid
 flowchart TD

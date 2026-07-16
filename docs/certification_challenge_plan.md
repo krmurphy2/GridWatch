@@ -68,7 +68,7 @@ for scan restrictions and data handling boundaries.
 | LLM | Anthropic Claude via an LLM gateway | `docs/model_choices.md` |
 | LLM gateway | Vercel AI Gateway (LiteLLM documented as alternative) | `docs/model_choices.md` |
 | Agent orchestration | LangGraph | `docs/architecture.md` |
-| Tools | Screenshot/evidence extractor, external exposure scan, passive intelligence, NVD CVE lookup, RAG retriever, Tavily search | `docs/architecture.md` |
+| Tools | Screenshot/evidence extractor, NIST NVD CVE lookup, Shodan InternetDB passive exposure, RAG retriever | Built today; planned tools in `docs/roadmap.md` |
 | Embedding model | To be finalized during data scoping | `docs/data_strategy.md` |
 | Vector database | Qdrant Cloud (free tier) | `docs/rag_scoping.md` |
 | Monitoring | LangSmith for the hosted graph; Langfuse remains optional later | `docs/evaluation_plan.md` |
