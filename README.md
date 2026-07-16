@@ -76,7 +76,6 @@ flowchart TD
 | 7 | What security changes should I make first? | Combine screenshot evidence, scan results, passive intelligence, CVEs, and RAG guidance into prioritized remediation. |
 | 8 | What devices are currently on my network? | Explain that local device inventory is a post-MVP feature. |
 
-More detail: [Certification Challenge Plan](docs/certification_challenge_plan.md)
 
 ## Task 2: Proposed Solution
 
@@ -98,40 +97,65 @@ trusted RAG guidance, and plain-English remediation for home users.
 ```mermaid
 flowchart TD
     User[User browser: phone or laptop]
-    UI[Web UI: dashboard and chat]
-    Upload[Router screenshots and setup details]
-    API[Vercel server actions and API routes]
-    DB[Neon serverless Postgres]
-    Extract[Hosted router extraction graph]
-    Agent[LangGraph agent]
-    Gateway[LLM gateway]
-    LLM[OpenAI GPT]
-    Memory[Session and assessment memory]
-    VectorDB[Vector database]
-    Docs[Trusted RAG corpus]
+    UI[Web UI: dashboard, setup, chat]
+
+    subgraph Vercel[Vercel: frontend + server actions]
+        API[Server actions / API routes + deterministic guardrails]
+    end
+
+    DB[(Neon Postgres: users, sessions, router profile, findings)]
     NVD[NIST NVD CVE API]
-    Tavily[Tavily search]
-    ExposureScan[Approved public IP exposure scan]
-    PassiveIntel[Passive external intelligence]
+    InternetDB[Shodan InternetDB]
+
+    subgraph LG[LangGraph Platform - hosted agent, observed by LangSmith]
+        Extract[router_extraction graph]
+        Chat[security_chat graph]
+        Summary[findings_summary graph]
+    end
+
+    Gateway[Vercel AI Gateway]
+    LLM[OpenAI gpt-5.1]
+    Qdrant[(Qdrant Cloud: trusted security corpus)]
 
     User --> UI
-    UI --> Upload
     UI --> API
-    Upload --> API
-    API --> DB
-    API --> Extract
-    Extract --> Agent
-    API --> Agent
-    Agent --> Gateway
+    API <--> DB
+
+    API -->|CVE lookup| NVD
+    API -->|passive exposure| InternetDB
+    NVD -->|CVE results| API
+    InternetDB -->|exposure results| API
+
+    API -->|screenshots| Extract
+    API -->|chat question| Chat
+    API -->|profile + CVE + exposure findings| Summary
+
+    Extract --> Gateway
+    Chat --> Gateway
+    Summary --> Gateway
     Gateway --> LLM
-    Agent --> Memory
-    Agent --> VectorDB
-    VectorDB --> Docs
-    Agent --> NVD
-    Agent --> Tavily
-    Agent --> ExposureScan
-    Agent --> PassiveIntel
+
+    Chat --> Qdrant
+    Summary --> Qdrant
+
+    Extract -->|router facts| API
+    Summary -->|assessment| API
 ```
+
+This shows what runs today. The Vercel server-action layer is the orchestrator: it
+enforces the deterministic guardrails, calls the read-only security tools (NIST NVD,
+Shodan InternetDB) **directly**, and then invokes the hosted LangGraph agent graphs
+over HTTP. The three graphs run on **LangGraph Platform** (a separate hosted service,
+traced by LangSmith), and their LLM calls go out through the Vercel AI Gateway to
+OpenAI.
+
+Data flow for a security check: the API gets the CVE + passive-exposure results back
+from the tools, and — when the scan isn't clean — passes them (with the router
+profile) into the `findings_summary` graph, which returns a plain-English assessment.
+The API persists the tool results and the assessment to Neon. On a clean/low-risk
+scan the LLM call is skipped (a local heuristic produces the "all clear"). The
+`security_chat` and `findings_summary` graphs retrieve trusted guidance from Qdrant.
+Planned tools and integrations are tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ### Component Choices
 
@@ -140,7 +164,7 @@ flowchart TD
 | LLM | OpenAI (gpt-5.1) | Strong reasoning and plain-English security explanation; vision support for router screenshot extraction. |
 | LLM gateway | Vercel AI Gateway | OpenAI-compatible gateway for cost tracking, fallback, and observability; low-friction since the app already deploys on Vercel (see `docs/model_choices.md`). |
 | Agent orchestration | LangGraph | Makes tool routing, approval gates, and agent state explicit. |
-| Tools | Screenshot extraction, exposure scan, passive intelligence, NVD, Tavily, RAG retriever | Matches the external-first MVP workflow. |
+| Tools | Screenshot/evidence extraction, NIST NVD CVE lookup, Shodan InternetDB passive exposure, RAG retriever (Qdrant) | The tools live today; planned additions (active scan, Tavily, AbuseIPDB, HIBP) are in `docs/roadmap.md`. |
 | Embedding model | To be finalized during implementation | Should be chosen based on retrieval quality, cost, and latency. |
 | Vector database | Qdrant (Qdrant Cloud free tier) | Managed store for the deployed prototype; chosen for time efficiency given existing familiarity with the Qdrant API (see `docs/rag_scoping.md`). |
 | Monitoring | LangSmith for the hosted graph; Langfuse remains optional later | Tracks traces, evaluations, latency, prompts, and tool behavior. |
