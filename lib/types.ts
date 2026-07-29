@@ -36,6 +36,21 @@ export type PassiveExposure = {
   vulns: string[];
 };
 
+// Public abuse/reputation signal for an IP (AbuseIPDB). `abuseConfidenceScore` is
+// 0-100; higher means more community abuse reports. Read-only, public-IP only.
+export type IpReputation = {
+  ip: string;
+  found: boolean;
+  abuseConfidenceScore: number;
+  totalReports: number;
+  countryCode: string | null;
+  isp: string | null;
+  domain: string | null;
+  usageType: string | null;
+  isTor: boolean;
+  lastReportedAt: string | null;
+};
+
 // A single prioritized, plain-English recommendation for the user.
 export type AssessmentAction = {
   title: string;
@@ -68,8 +83,32 @@ export type SecurityFindings = {
     exposure: PassiveExposure | null;
     note: string | null;
   };
+  reputation: {
+    result: IpReputation | null;
+    note: string | null;
+  };
   assessment: FindingsAssessment | null;
   checkedAt: string;
+};
+
+// A notification email GridWatch produced after a scan. In the current build the
+// "delivery" is a stub (logged, not actually sent) so the payload can be shown in
+// the UI and swapped onto a real provider later without changing callers.
+export type NotificationPayload = {
+  to: string;
+  subject: string;
+  body: string;
+  sentAt: string;
+  delivery: "logged" | "sent";
+};
+
+// Per-user recurring-scan preferences plus the last notification we produced, so
+// the dashboard can show what the most recent scheduled email looked like.
+export type ScanSettings = {
+  recurringEnabled: boolean;
+  notifyEmail: string | null;
+  lastNotification: NotificationPayload | null;
+  updatedAt: string;
 };
 
 export type RouterProfile = {

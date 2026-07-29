@@ -15,6 +15,11 @@ plain-English risk assessment with prioritized next steps.
   affecting the extracted router vendor/model.
 - **Passive exposure check** — reads Shodan's InternetDB catalog for a verified public
   IP (read-only; private/LAN addresses are rejected).
+- **IP reputation check** — looks up the public IP's abuse/reputation score from
+  AbuseIPDB (read-only, public-IP only) and factors it into the risk assessment.
+- **Recurring scans + email alerts** — an opt-in daily re-scan (Vercel Cron) that
+  emails a plain-English summary, with a "run now" button to preview the email
+  (delivery is currently stubbed/logged; see the roadmap).
 - **Grounded guidance (RAG)** — retrieves hardening and remediation guidance from a
   curated corpus of official security sources (NIST, NSA, CISA, OWASP, FTC, FBI IC3,
   Wi-Fi Alliance, FIRST/CVSS), each chunk carrying source provenance.
@@ -40,9 +45,12 @@ flowchart TD
         API[Server actions / API routes + deterministic guardrails]
     end
 
-    DB[(Neon Postgres: users, sessions, router profile, findings)]
+    DB[(Neon Postgres: users, sessions, router profile, findings, scan settings)]
     NVD[NIST NVD CVE API]
     InternetDB[Shodan InternetDB]
+    AbuseIPDB[AbuseIPDB reputation]
+    Cron[Vercel Cron - daily recurring scan]
+    Email[Email notification - stubbed / logged]
 
     subgraph LG[LangGraph Platform - hosted agent, observed by LangSmith]
         Extract[router_extraction graph]
@@ -57,15 +65,19 @@ flowchart TD
     User --> UI
     UI --> API
     API <--> DB
+    Cron -->|CRON_SECRET| API
+    API -->|scan summary| Email
 
     API -->|CVE lookup| NVD
     API -->|passive exposure| InternetDB
+    API -->|IP reputation| AbuseIPDB
     NVD -->|CVE results| API
     InternetDB -->|exposure results| API
+    AbuseIPDB -->|reputation| API
 
     API -->|screenshots| Extract
     API -->|chat question| Chat
-    API -->|profile + CVE + exposure findings| Summary
+    API -->|profile + CVE + exposure + reputation| Summary
 
     Extract --> Gateway
     Chat --> Gateway
@@ -140,9 +152,9 @@ and the full local setup, and [docs/deployment.md](docs/deployment.md) for deplo
 ## Safety & scope
 
 GridWatch is **external-first and read-only today**. It requires no local scanner,
-Docker container, appliance, or router integration. The IP-based check is a passive
-InternetDB catalog lookup — private/LAN addresses are always rejected, and it never
-performs an active scan.
+Docker container, appliance, or router integration. The IP-based checks (Shodan
+InternetDB exposure, AbuseIPDB reputation) are passive catalog/database lookups —
+private/LAN addresses are always rejected, and nothing performs an active scan.
 
 An approved **active** exposure scan (restricted to the user's own verified router IP,
 behind explicit approval and target validation) and additional intelligence sources

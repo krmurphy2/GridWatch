@@ -44,6 +44,7 @@ class FindingsSummaryState(TypedDict, total=False):
     profile: Optional[Dict[str, Any]]
     cve: Dict[str, Any]
     passive: Dict[str, Any]
+    reputation: Dict[str, Any]
     baseline: Optional[Dict[str, Any]]
     output: Dict[str, Any]
     namespace: str
@@ -139,6 +140,17 @@ def _describe_findings(state: FindingsSummaryState) -> str:
             lines.append(f"- Tags: {exposure['tags']}")
     else:
         lines.append(f"\nPassive internet exposure: {passive.get('note') or 'no records found.'}")
+
+    reputation = state.get("reputation") or {}
+    rep = reputation.get("result")
+    if rep and rep.get("found"):
+        lines.append("\nPublic IP reputation (AbuseIPDB):")
+        lines.append(f"- Abuse confidence score: {rep.get('abuseConfidenceScore')}/100")
+        lines.append(f"- Abuse reports (last 90 days): {rep.get('totalReports')}")
+        if rep.get("isTor"):
+            lines.append("- The IP is a known Tor exit node.")
+    elif reputation.get("note"):
+        lines.append(f"\nPublic IP reputation: {reputation.get('note')}")
 
     return "\n".join(lines)
 

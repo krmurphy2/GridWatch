@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { RouterExtraction, RouterProfile, SecurityFindings } from "./types";
+import type { RouterExtraction, RouterProfile, ScanSettings, SecurityFindings } from "./types";
 
 type LocalUser = {
   id: string;
@@ -37,12 +37,18 @@ type LocalSecurityFindings = {
   findings: SecurityFindings;
 };
 
+type LocalScanSettings = {
+  userId: string;
+  settings: ScanSettings;
+};
+
 type LocalData = {
   users: LocalUser[];
   sessions: LocalSession[];
   routerProfiles: LocalRouterProfile[];
   chatMessages: LocalChatMessage[];
   securityFindings: LocalSecurityFindings[];
+  scanSettings: LocalScanSettings[];
 };
 
 type SaveRouterProfileInput = {
@@ -61,7 +67,8 @@ const defaultData: LocalData = {
   sessions: [],
   routerProfiles: [],
   chatMessages: [],
-  securityFindings: []
+  securityFindings: [],
+  scanSettings: []
 };
 
 function getLocalDataPath() {
@@ -79,7 +86,8 @@ async function readLocalData(): Promise<LocalData> {
       sessions: parsed.sessions ?? [],
       routerProfiles: parsed.routerProfiles ?? [],
       chatMessages: parsed.chatMessages ?? [],
-      securityFindings: parsed.securityFindings ?? []
+      securityFindings: parsed.securityFindings ?? [],
+      scanSettings: parsed.scanSettings ?? []
     };
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
@@ -297,6 +305,27 @@ export async function localSaveSecurityFindings(userId: string, findings: Securi
     ...data,
     securityFindings: [...others, { userId, findings }]
   });
+}
+
+export async function localGetScanSettings(userId: string): Promise<ScanSettings | null> {
+  const data = await readLocalData();
+  return data.scanSettings.find((entry) => entry.userId === userId)?.settings ?? null;
+}
+
+export async function localSaveScanSettings(userId: string, settings: ScanSettings) {
+  const data = await readLocalData();
+  const others = data.scanSettings.filter((entry) => entry.userId !== userId);
+  await writeLocalData({
+    ...data,
+    scanSettings: [...others, { userId, settings }]
+  });
+}
+
+export async function localGetRecurringScanUserIds(): Promise<string[]> {
+  const data = await readLocalData();
+  return data.scanSettings
+    .filter((entry) => entry.settings.recurringEnabled && entry.settings.notifyEmail)
+    .map((entry) => entry.userId);
 }
 
 export async function localSaveRouterProfile(input: SaveRouterProfileInput) {

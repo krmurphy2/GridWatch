@@ -115,6 +115,7 @@ export async function getFindingsAssessment(
           profile: profileSummary(input.profile),
           cve: { query: input.cve.query, results: input.cve.results, note: input.cve.note },
           passive: { exposure: input.passive.exposure, note: input.passive.note },
+          reputation: { result: input.reputation.result, note: input.reputation.note },
           baseline
         },
         config: { configurable: { user_id: userId, namespace } }

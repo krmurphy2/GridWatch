@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildHeuristicAssessment, parseAssessment, type SummaryInput } from "./findings-summary";
-import type { CveFinding, PassiveExposure, RouterProfile } from "./types";
+import type { CveFinding, IpReputation, PassiveExposure, RouterProfile } from "./types";
 
 function profile(overrides: Partial<RouterProfile> = {}): RouterProfile {
   return {
@@ -68,11 +68,28 @@ function exposure(overrides: Partial<PassiveExposure> = {}): PassiveExposure {
   };
 }
 
+function reputation(overrides: Partial<IpReputation> = {}): IpReputation {
+  return {
+    ip: "203.0.113.10",
+    found: true,
+    abuseConfidenceScore: 0,
+    totalReports: 0,
+    countryCode: null,
+    isp: null,
+    domain: null,
+    usageType: null,
+    isTor: false,
+    lastReportedAt: null,
+    ...overrides
+  };
+}
+
 function input(overrides: Partial<SummaryInput> = {}): SummaryInput {
   return {
     profile: profile(),
     cve: { query: "TP-Link Archer AX55", results: [], note: null },
     passive: { exposure: null, note: null },
+    reputation: { result: null, note: null },
     ...overrides
   };
 }
@@ -135,6 +152,33 @@ describe("buildHeuristicAssessment", () => {
     );
     expect(result.riskLevel).toBe("high");
     expect(result.actions.some((a) => /internet-facing vulnerabilities/i.test(a.title))).toBe(true);
+  });
+
+  it("flags high risk for a bad IP reputation score", () => {
+    const result = buildHeuristicAssessment(
+      input({ reputation: { result: reputation({ abuseConfidenceScore: 80, totalReports: 12 }), note: null } })
+    );
+    expect(result.riskLevel).toBe("high");
+    const repAction = result.actions.find((a) => /reputation/i.test(a.title));
+    expect(repAction).toBeDefined();
+    expect(repAction?.priority).toBe("high");
+    expect(repAction?.detail).toContain("80/100");
+  });
+
+  it("is medium risk for a low non-zero reputation score", () => {
+    const result = buildHeuristicAssessment(
+      input({ reputation: { result: reputation({ abuseConfidenceScore: 15 }), note: null } })
+    );
+    expect(result.riskLevel).toBe("medium");
+    expect(result.actions.some((a) => /reputation/i.test(a.title) && a.priority === "low")).toBe(true);
+  });
+
+  it("stays low risk when the reputation score is zero", () => {
+    const result = buildHeuristicAssessment(
+      input({ reputation: { result: reputation({ abuseConfidenceScore: 0 }), note: null } })
+    );
+    expect(result.riskLevel).toBe("low");
+    expect(result.actions.some((a) => /reputation/i.test(a.title))).toBe(false);
   });
 
   it("uses a generic label when vendor/model are missing", () => {
