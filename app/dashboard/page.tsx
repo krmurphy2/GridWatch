@@ -223,6 +223,72 @@ function AssessmentSummary({ assessment }: { assessment: FindingsAssessment }) {
   );
 }
 
+type CoverageRow = { name: string; level: PostureLevel; detail: string };
+
+// Per-tool coverage so a clean result is still visibly confirmed (not silent).
+// This mirrors what drove the risk level but never adds to the action list — it's
+// a "what we checked" summary, using the same OK/Action/Not checked language as
+// the router-settings posture. Defensive against legacy findings missing newer
+// fields (e.g. `reputation`).
+function buildChecksCoverage(findings: SecurityFindings): CoverageRow[] {
+  const rows: CoverageRow[] = [];
+
+  const cveCount = findings.cve.results.length;
+  if (findings.cve.query === null) {
+    rows.push({ name: "Known vulnerabilities", level: "unknown", detail: "NVD — add your router model to check" });
+  } else if (cveCount > 0) {
+    rows.push({ name: "Known vulnerabilities", level: "attention", detail: `NVD — ${cveCount} found` });
+  } else {
+    rows.push({ name: "Known vulnerabilities", level: "good", detail: "NVD — none found" });
+  }
+
+  const exposure = findings.passive.exposure;
+  if (!exposure) {
+    rows.push({ name: "Internet exposure", level: "unknown", detail: "InternetDB — add a public IP to check" });
+  } else if (exposure.found && (exposure.ports.length > 0 || exposure.vulns.length > 0)) {
+    const bits: string[] = [];
+    if (exposure.ports.length > 0) bits.push(`${exposure.ports.length} open port${exposure.ports.length === 1 ? "" : "s"}`);
+    if (exposure.vulns.length > 0) bits.push(`${exposure.vulns.length} flagged CVE${exposure.vulns.length === 1 ? "" : "s"}`);
+    rows.push({ name: "Internet exposure", level: "attention", detail: `InternetDB — ${bits.join(", ")}` });
+  } else {
+    rows.push({ name: "Internet exposure", level: "good", detail: "InternetDB — nothing exposed" });
+  }
+
+  const rep = findings.reputation?.result;
+  if (!rep || !rep.found) {
+    rows.push({ name: "IP reputation", level: "unknown", detail: "AbuseIPDB — not checked" });
+  } else if (rep.abuseConfidenceScore > 0) {
+    rows.push({ name: "IP reputation", level: "attention", detail: `AbuseIPDB — ${rep.abuseConfidenceScore}/100` });
+  } else {
+    rows.push({ name: "IP reputation", level: "good", detail: "AbuseIPDB — 0/100 (clean)" });
+  }
+
+  return rows;
+}
+
+// A compact "what we checked" strip so clean checks are acknowledged rather than
+// invisible. Sits between the plain-English assessment and the raw technical details.
+function ChecksCoverage({ findings }: { findings: SecurityFindings }) {
+  const rows = buildChecksCoverage(findings);
+
+  return (
+    <div className="checks-coverage stack">
+      <b>What we checked</b>
+      <ul className="finding-list">
+        {rows.map((row) => (
+          <li className="finding" key={row.name}>
+            <span className={`badge badge-${row.level}`}>{levelLabel[row.level]}</span>
+            <div>
+              <b>{row.name}</b>
+              <p className="muted">{row.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function SecurityChecksCard({
   findings,
   scanSettings,
@@ -254,6 +320,8 @@ function SecurityChecksCard({
         )}
 
         {findings?.assessment ? <AssessmentSummary assessment={findings.assessment} /> : null}
+
+        {findings ? <ChecksCoverage findings={findings} /> : null}
 
         {findings ? (
           <details className="tech-details">

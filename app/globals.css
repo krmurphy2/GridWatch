@@ -361,6 +361,12 @@ textarea {
   white-space: pre;
 }
 
+.checks-coverage {
+  margin-top: 4px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding-top: 14px;
+}
+
 .recurring-scan {
   margin-top: 12px;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
