@@ -4,10 +4,12 @@ import { requireUser } from "@/lib/auth";
 import { getClientPublicIpSuggestion } from "@/lib/client-ip";
 import { getLatestRouterProfile } from "@/lib/router-profile";
 import { getSecurityFindings } from "@/lib/security-findings";
-import type { AssessmentAction, CveFinding, FindingsAssessment, RouterProfile, SecurityFindings } from "@/lib/types";
+import { getScanSettings } from "@/lib/scan-settings";
+import type { AssessmentAction, CveFinding, FindingsAssessment, RouterProfile, ScanSettings, SecurityFindings } from "@/lib/types";
 import { signOutAction } from "../actions";
 import { ProfileEditForm } from "./profile-edit-form";
 import { SecurityChecksForm } from "./security-checks-form";
+import { RecurringScanForm } from "./recurring-scan-form";
 
 type PostureLevel = "good" | "attention" | "unknown";
 // `detail` says what we saw and what to do; `why` is a plain-English reason the
@@ -221,7 +223,15 @@ function AssessmentSummary({ assessment }: { assessment: FindingsAssessment }) {
   );
 }
 
-function SecurityChecksCard({ findings }: { findings: SecurityFindings | null }) {
+function SecurityChecksCard({
+  findings,
+  scanSettings,
+  userEmail
+}: {
+  findings: SecurityFindings | null;
+  scanSettings: ScanSettings;
+  userEmail: string;
+}) {
   return (
     <section className="card">
       <div className="card-inner stack">
@@ -230,8 +240,8 @@ function SecurityChecksCard({ findings }: { findings: SecurityFindings | null })
           <h2>External security checks</h2>
           <p className="muted">
             Read-only lookups using your saved router model and verified public IP. We query NIST NVD for
-            known vulnerabilities and Shodan InternetDB for what public scanners already see. Nothing is
-            actively scanned.
+            known vulnerabilities, Shodan InternetDB for what public scanners already see, and AbuseIPDB for
+            your public IP&apos;s reputation. Nothing is actively scanned.
           </p>
         </div>
 
@@ -310,17 +320,59 @@ function SecurityChecksCard({ findings }: { findings: SecurityFindings | null })
               ) : null}
             </div>
 
+            <div>
+              <b>Public IP reputation (AbuseIPDB)</b>
+              {findings.reputation?.note ? <p className="muted">{findings.reputation.note}</p> : null}
+              {findings.reputation?.result && findings.reputation.result.found ? (
+                <ul className="result-list">
+                  <li>
+                    <b>Abuse confidence score:</b> {findings.reputation.result.abuseConfidenceScore}/100
+                  </li>
+                  <li>
+                    <b>Reports (last 90 days):</b> {findings.reputation.result.totalReports}
+                  </li>
+                  {findings.reputation.result.isp ? (
+                    <li>
+                      <b>ISP:</b> {findings.reputation.result.isp}
+                    </li>
+                  ) : null}
+                  {findings.reputation.result.isTor ? (
+                    <li>
+                      <b>Tor exit node:</b> yes
+                    </li>
+                  ) : null}
+                </ul>
+              ) : null}
+            </div>
+
             <details className="raw-json">
               <summary>Raw tool output (JSON)</summary>
               <p className="muted">
-                The unprocessed results from the security tools (NIST NVD and Shodan
-                InternetDB) that GridWatch condenses into the plain-English assessment above.
+                The unprocessed results from the security tools (NIST NVD, Shodan InternetDB,
+                and AbuseIPDB) that GridWatch condenses into the plain-English assessment above.
               </p>
-              <pre>{JSON.stringify({ nist_nvd: findings.cve ?? null, shodan_internetdb: findings.passive ?? null }, null, 2)}</pre>
+              <pre>{JSON.stringify({ nist_nvd: findings.cve ?? null, shodan_internetdb: findings.passive ?? null, abuseipdb: findings.reputation ?? null }, null, 2)}</pre>
             </details>
             </div>
           </details>
         ) : null}
+
+        <div className="stack recurring-scan">
+          <div>
+            <p className="eyebrow">Recurring scans</p>
+            <h3>Automatic monitoring &amp; email alerts</h3>
+            <p className="muted">
+              Turn on a daily re-scan so GridWatch keeps watching for new vulnerabilities and exposure, and
+              emails you a plain-English summary. Use &quot;Run scan &amp; email now&quot; to see exactly what that
+              email looks like.
+            </p>
+          </div>
+          <RecurringScanForm
+            enabled={scanSettings.recurringEnabled}
+            email={scanSettings.notifyEmail ?? userEmail}
+            lastNotification={scanSettings.lastNotification}
+          />
+        </div>
       </div>
     </section>
   );
@@ -340,6 +392,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   const attentionCount = findings.filter((finding) => finding.level === "attention").length;
   const unknownCount = findings.filter((finding) => finding.level === "unknown").length;
   const securityFindings = await getSecurityFindings(user.id);
+  const scanSettings = await getScanSettings(user.id);
 
   // Only suggest a browser-derived public IP when the profile doesn't have one.
   const publicIpSuggestion = profile.publicIp ? null : getClientPublicIpSuggestion();
@@ -404,7 +457,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
           </div>
         </section>
 
-        <SecurityChecksCard findings={securityFindings} />
+        <SecurityChecksCard findings={securityFindings} scanSettings={scanSettings} userEmail={user.email} />
 
         <div className="two-column">
           <section className="card">

@@ -87,5 +87,17 @@ export async function ensureSchema() {
     )
   `;
 
+  // Per-user recurring-scan preferences and the last notification payload. One row
+  // per user; toggling settings or running a scan upserts in place.
+  await sql`
+    create table if not exists scan_settings (
+      user_id text primary key references users(id) on delete cascade,
+      recurring_enabled boolean not null default false,
+      notify_email text,
+      last_notification jsonb,
+      updated_at timestamptz not null default now()
+    )
+  `;
+
   schemaReady = true;
 }

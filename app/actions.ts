@@ -17,13 +17,12 @@ import {
   getChatMessages
 } from "@/lib/chat";
 import { getChatReply } from "@/lib/chat-client";
-import { lookupRouterCves } from "@/lib/nvd";
-import { lookupPassiveExposure } from "@/lib/internetdb";
-import { getSecurityFindings, saveSecurityFindings } from "@/lib/security-findings";
-import { buildHeuristicAssessment } from "@/lib/findings-summary";
-import { getFindingsAssessment } from "@/lib/findings-summary-client";
+import { getSecurityFindings } from "@/lib/security-findings";
+import { runSecurityChecksForUser } from "@/lib/security-scan";
+import { getScanSettings, saveScanSettings } from "@/lib/scan-settings";
+import { sendScanNotification } from "@/lib/email";
 import { screenChatMessage } from "@/lib/guardrails";
-import type { SecurityFindings } from "@/lib/types";
+import { isValidEmail } from "@/lib/validation";
 
 const maxChatMessageLength = 2000;
 const chatHistoryLimit = 20;
@@ -173,10 +172,11 @@ export async function clearChatAction() {
 
 export type SecurityChecksState = { error?: string; ok?: boolean };
 
-// Run the read-only external security checks (NVD CVE lookup + InternetDB passive
-// exposure) for the signed-in user's router facts, persist the results, and
-// refresh the dashboard. Both lookups only use the user's own vendor/model and
-// verified public IP; private/LAN addresses are never sent to third parties.
+// Run the read-only external security checks (NVD CVE lookup, InternetDB passive
+// exposure, AbuseIPDB reputation) for the signed-in user's router facts, persist
+// the results, and refresh the dashboard. All lookups only use the user's own
+// vendor/model and verified public IP; private/LAN addresses are never sent to
+// third parties.
 export async function runSecurityChecksAction(
   _prevState: SecurityChecksState,
   _formData: FormData
@@ -184,51 +184,77 @@ export async function runSecurityChecksAction(
   const user = await requireUser();
 
   try {
-    const profile = await getLatestRouterProfile(user.id);
-
-    if (!profile) {
-      return { error: "Add router evidence before running security checks." };
-    }
-
     const existing = await getSecurityFindings(user.id);
     if (existing && Date.now() - new Date(existing.checkedAt).getTime() < securityChecksCooldownMs) {
       return { error: "Checks were just run. Please wait a few seconds before retrying." };
     }
 
-    const scanIp = profile.publicIp ?? profile.scanTargetIp;
-
-    const [cve, passive] = await Promise.all([
-      lookupRouterCves({ routerVendor: profile.routerVendor, routerModel: profile.routerModel }),
-      lookupPassiveExposure(scanIp)
-    ]);
-
-    const summaryInput = {
-      profile,
-      cve: { query: cve.query, results: cve.results, note: cve.note },
-      passive: { exposure: passive.exposure, note: passive.note }
-    };
-
-    // Deterministic assessment always available; the LLM improves on it when the
-    // agent is reachable, otherwise we keep the heuristic (never blocks the scan).
-    const heuristic = buildHeuristicAssessment(summaryInput);
-    // Cost guardrail: a clean scan (no CVEs, no exposed ports/vulns -> low risk)
-    // produces the same "all clear" summary from the heuristic as from the LLM, so
-    // skip the paid call entirely and only invoke the LLM when there's something to explain.
-    const assessment =
-      heuristic.riskLevel === "low"
-        ? heuristic
-        : (await getFindingsAssessment(summaryInput, user.id, heuristic)) ?? heuristic;
-
-    const findings: SecurityFindings = {
-      cve: summaryInput.cve,
-      passive: summaryInput.passive,
-      assessment,
-      checkedAt: new Date().toISOString()
-    };
-
-    await saveSecurityFindings(user.id, findings);
+    const findings = await runSecurityChecksForUser(user.id);
+    if (!findings) {
+      return { error: "Add router evidence before running security checks." };
+    }
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not run security checks." };
+  }
+
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export type ScanScheduleState = { error?: string; ok?: boolean };
+
+// Save the signed-in user's recurring-scan preferences (on/off + notification
+// email). When recurring is enabled a valid email is required so the cron job has
+// somewhere to send results.
+export async function updateScanScheduleAction(
+  _prevState: ScanScheduleState,
+  formData: FormData
+): Promise<ScanScheduleState> {
+  const user = await requireUser();
+
+  try {
+    const recurringEnabled = formData.get("recurringEnabled") === "on";
+    const rawEmail = formData.get("notifyEmail");
+    const notifyEmail = typeof rawEmail === "string" && rawEmail.trim().length > 0 ? rawEmail.trim() : null;
+
+    if (recurringEnabled && !isValidEmail(notifyEmail)) {
+      return { error: "Enter a valid email address to receive recurring scan results." };
+    }
+
+    await saveScanSettings(user.id, { recurringEnabled, notifyEmail });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not save scan schedule." };
+  }
+
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export type RunNowState = { error?: string; ok?: boolean };
+
+// Run the recurring scan immediately for the signed-in user and "send" the
+// notification email (stubbed to a logged payload in this build), so the whole
+// recurring flow can be demonstrated live without waiting for the cron schedule.
+export async function runRecurringScanNowAction(
+  _prevState: RunNowState,
+  _formData: FormData
+): Promise<RunNowState> {
+  const user = await requireUser();
+
+  try {
+    const settings = await getScanSettings(user.id);
+    const recipient = settings.notifyEmail ?? user.email;
+
+    const findings = await runSecurityChecksForUser(user.id);
+    if (!findings) {
+      return { error: "Add router evidence before running a scan." };
+    }
+
+    const profile = await getLatestRouterProfile(user.id);
+    const payload = await sendScanNotification(recipient, findings, profile);
+    await saveScanSettings(user.id, { lastNotification: payload });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not run the scan." };
   }
 
   revalidatePath("/dashboard");

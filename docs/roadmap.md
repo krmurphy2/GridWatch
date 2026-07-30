@@ -8,21 +8,33 @@ architecture docs describe only what is built today.
 
 ## Planned tools & integrations
 
-Only NIST NVD (CVE lookup) and Shodan InternetDB (passive exposure) are wired today.
-Planned additions:
+Wired today: NIST NVD (CVE lookup), Shodan InternetDB (passive exposure), and
+AbuseIPDB (public-IP reputation). Planned additions:
 
 - **Approved active public-IP exposure scan** — an actual port/service scan of the
   user's own verified router IP, behind strict target-verification and explicit
   approval. Higher-risk than the passive checks, so it needs its own guardrails.
-- **Verify public-IP ownership** — today the passive InternetDB lookup only rejects
-  private/LAN addresses; it doesn't confirm the public IP belongs to the user. Add an
+- **Verify public-IP ownership** — today the IP-based lookups only reject private/LAN
+  addresses; they don't confirm the public IP belongs to the user. Add an
   ownership/verification step (and an explicit approval gate) before any IP lookup.
 - **Tavily web search** — fresh vendor guidance / source discovery when the curated
   corpus and NVD are insufficient.
-- **AbuseIPDB** — public-IP reputation context (verified public IP only, never a
-  private/LAN address).
 - **HaveIBeenPwned** — breach-exposure checks, only with explicit user-provided
   account context and consent.
+
+## Recurring scans & notifications
+
+Shipped in the POC: a daily Vercel Cron job (`/api/cron/recurring-scan`, protected by
+`CRON_SECRET`) re-runs the checks for opted-in users, plus a dashboard toggle and a
+"Run scan & email now" button. Email delivery is currently a **stub** — the payload is
+logged server-side and displayed in the UI. Planned:
+
+- **Real email delivery** — swap `lib/email.ts` onto a provider (Resend / SES). One
+  function, no caller changes.
+- **Change-only alerts** — only email when the posture changes (new CVE, newly exposed
+  port, reputation crossing a threshold) instead of every run, to avoid alert fatigue.
+- **Per-user cadence** — let the user choose daily/weekly; Vercel Hobby cron is limited
+  to once/day, so sub-daily needs a Pro plan or an external scheduler.
 
 ## Retrieval & evaluation
 

@@ -34,9 +34,12 @@ flowchart TD
         API[Server actions / API routes + deterministic guardrails]
     end
 
-    DB[(Neon Postgres: users, sessions, router profile, findings)]
+    DB[(Neon Postgres: users, sessions, router profile, findings, scan settings)]
     NVD[NIST NVD CVE API]
     InternetDB[Shodan InternetDB]
+    AbuseIPDB[AbuseIPDB reputation]
+    Cron[Vercel Cron - daily recurring scan]
+    Email[Email notification - stubbed / logged]
 
     subgraph LG[LangGraph Platform - hosted agent, observed by LangSmith]
         Extract[router_extraction graph]
@@ -51,15 +54,19 @@ flowchart TD
     User --> UI
     UI --> API
     API <--> DB
+    Cron -->|CRON_SECRET| API
+    API -->|scan summary| Email
 
     API -->|CVE lookup| NVD
     API -->|passive exposure| InternetDB
+    API -->|IP reputation| AbuseIPDB
     NVD -->|CVE results| API
     InternetDB -->|exposure results| API
+    AbuseIPDB -->|reputation| API
 
     API -->|screenshots| Extract
     API -->|chat question| Chat
-    API -->|profile + CVE + exposure findings| Summary
+    API -->|profile + CVE + exposure + reputation| Summary
 
     Extract --> Gateway
     Chat --> Gateway
@@ -74,12 +81,14 @@ flowchart TD
 ```
 
 The Vercel server-action layer is the orchestrator: it enforces guardrails, calls
-NIST NVD and Shodan InternetDB directly, and invokes the hosted LangGraph graphs over
-HTTP. The three graphs run on LangGraph Platform (traced by LangSmith) and reach
-OpenAI through the Vercel AI Gateway. The CVE + passive-exposure results flow back to
-the API, which feeds them (with the router profile) into `findings_summary` — when the
-scan isn't clean — and persists the tool results and assessment to Neon. On a
-clean/low-risk scan the LLM call is skipped in favor of a local heuristic.
+NIST NVD, Shodan InternetDB, and AbuseIPDB directly, and invokes the hosted LangGraph
+graphs over HTTP. The three graphs run on LangGraph Platform (traced by LangSmith) and
+reach OpenAI through the Vercel AI Gateway. The CVE, passive-exposure, and reputation
+results flow back to the API, which feeds them (with the router profile) into
+`findings_summary` — when the scan isn't clean — and persists the tool results and
+assessment to Neon. On a clean/low-risk scan the LLM call is skipped in favor of a
+local heuristic. A daily Vercel Cron job re-runs the same checks for opted-in users
+and emails a summary (email delivery currently stubbed to a logged payload).
 
 ## MVP Scope
 
@@ -191,10 +200,11 @@ requests, and low-intensity checks only.
 | Screenshot/evidence extractor | Built | User-uploaded screenshots + form fields | `router_extraction` graph; extracts model, firmware, config clues. |
 | NIST NVD CVE lookup | Built | Router vendor/model keyword | Read-only; called by the API layer. |
 | Shodan InternetDB passive exposure | Built | Public IP in the profile (private/LAN rejected) | Read-only passive catalog lookup; ownership not yet verified. |
+| AbuseIPDB IP reputation | Built | Public IP in the profile (private/LAN rejected) | Read-only reputation/abuse score; requires `ABUSEIPDB_API_KEY`, skipped gracefully without it. |
 | RAG retriever | Built | Trusted project corpus (Qdrant) | Remediation, port, and CVE explanation. |
 | Active exposure scan | Planned | Verified router IP only | Approval + target validation — `docs/roadmap.md`. |
 | Tavily search | Planned | Public web search | `docs/roadmap.md`. |
-| AbuseIPDB / HaveIBeenPwned | Planned | Verified IP / consented account context | `docs/roadmap.md`. |
+| HaveIBeenPwned | Planned | Consented account context | `docs/roadmap.md`. |
 
 ## Memory Design
 

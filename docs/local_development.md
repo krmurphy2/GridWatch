@@ -42,6 +42,19 @@ This means:
 3. Router screenshot extraction uses mock output until a hosted LangGraph URL is configured.
 4. The first-user setup token for local development is `local-first-user-token`.
 
+Optional extras for the security tools (all degrade gracefully if unset):
+
+```bash
+# Enables the AbuseIPDB IP-reputation check; the scan skips reputation without it.
+ABUSEIPDB_API_KEY="your-abuseipdb-api-key"
+# Needed only to exercise the recurring-scan cron route locally. Call it with:
+#   curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/recurring-scan
+CRON_SECRET="local-cron-secret"
+```
+
+The recurring-scan email is stubbed locally: the payload is printed to the server
+console and shown on the dashboard (no real email is sent).
+
 ## Install and Run
 
 Install dependencies:

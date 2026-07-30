@@ -361,6 +361,23 @@ textarea {
   white-space: pre;
 }
 
+.recurring-scan {
+  margin-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding-top: 16px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
 .error {
   border: 1px solid rgba(251, 113, 133, 0.4);
   border-radius: 16px;

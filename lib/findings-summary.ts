@@ -2,9 +2,14 @@ import type {
   AssessmentAction,
   CveFinding,
   FindingsAssessment,
+  IpReputation,
   PassiveExposure,
   RouterProfile
 } from "./types";
+
+// AbuseIPDB confidence score (0-100) at or above which we treat the public IP as
+// having a meaningful abuse reputation worth surfacing to the user.
+const ABUSE_SCORE_HIGH = 50;
 
 // Ports that are notable when exposed to the public internet on a home router.
 // These are the ones a non-technical user should act on if they show up.
@@ -30,6 +35,7 @@ export type SummaryInput = {
   profile: RouterProfile;
   cve: { query: string | null; results: CveFinding[]; note: string | null };
   passive: { exposure: PassiveExposure | null; note: string | null };
+  reputation: { result: IpReputation | null; note: string | null };
 };
 
 function isSevereCve(finding: CveFinding): boolean {
@@ -41,7 +47,7 @@ function isSevereCve(finding: CveFinding): boolean {
 // fallback when the agent is unavailable (local/mock/undeployed) and as the
 // baseline the LLM is asked to improve on.
 export function buildHeuristicAssessment(input: SummaryInput): FindingsAssessment {
-  const { profile, cve, passive } = input;
+  const { profile, cve, passive, reputation } = input;
   const actions: AssessmentAction[] = [];
 
   const severeCves = cve.results.filter(isSevereCve);
@@ -52,10 +58,14 @@ export function buildHeuristicAssessment(input: SummaryInput): FindingsAssessmen
   const riskyOpenPorts = openPorts.filter((port) => port in RISKY_PORTS);
   const flaggedVulns = exposure?.found ? exposure.vulns : [];
 
+  const rep = reputation.result;
+  const abuseScore = rep?.found ? rep.abuseConfidenceScore : 0;
+  const badReputation = abuseScore >= ABUSE_SCORE_HIGH;
+
   let riskLevel: FindingsAssessment["riskLevel"] = "low";
-  if (severeCves.length > 0 || flaggedVulns.length > 0 || riskyOpenPorts.length > 0) {
+  if (severeCves.length > 0 || flaggedVulns.length > 0 || riskyOpenPorts.length > 0 || badReputation) {
     riskLevel = "high";
-  } else if (hasCves || openPorts.length > 0) {
+  } else if (hasCves || openPorts.length > 0 || abuseScore > 0) {
     riskLevel = "medium";
   }
 
@@ -102,6 +112,20 @@ export function buildHeuristicAssessment(input: SummaryInput): FindingsAssessmen
         `Public scan data flagged ${flaggedVulns.length} known vulnerabilit${flaggedVulns.length === 1 ? "y" : "ies"} on ` +
         "a service exposed by your connection. Updating firmware and closing unused services typically resolves these.",
       priority: "high"
+    });
+  }
+
+  if (abuseScore > 0) {
+    const reportCount = rep?.totalReports ?? 0;
+    actions.push({
+      title: "Your public IP has a poor internet reputation",
+      detail:
+        `Public abuse databases rate your connection's IP address ${abuseScore}/100 for suspicious activity` +
+        `${reportCount > 0 ? ` (${reportCount} report${reportCount === 1 ? "" : "s"} in the last 90 days)` : ""}. ` +
+        (badReputation
+          ? "A high score often means a device on your network is compromised (for example, part of a botnet) or your ISP recycled a flagged address. Restart your router, make sure every device is updated, and if it persists, contact your ISP."
+          : "A low score is usually nothing to worry about, but keep your devices updated and re-check periodically."),
+      priority: badReputation ? "high" : "low"
     });
   }
 

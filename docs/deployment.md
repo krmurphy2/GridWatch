@@ -48,12 +48,27 @@ LANGGRAPH_SUMMARY_ASSISTANT_ID="findings_summary"
 USE_MOCK_AGENT="false"
 # Optional: raises NIST NVD rate limits for CVE lookups (works without a key).
 NVD_API_KEY="your-nvd-api-key"
+# Optional: enables the AbuseIPDB public-IP reputation check. Without it, the scan
+# still runs and simply skips reputation (degrades gracefully).
+ABUSEIPDB_API_KEY="your-abuseipdb-api-key"
+# Required for the recurring-scan cron endpoint. Vercel Cron sends this as a Bearer
+# token; the endpoint refuses to run if it is unset or the token doesn't match.
+CRON_SECRET="generate-a-long-random-secret"
 ```
 
-The CVE lookup (NIST NVD) and passive exposure (Shodan InternetDB) checks are
-read-only and free. `NVD_API_KEY` is optional and only raises NVD rate limits;
-InternetDB requires no key. Passive intelligence only queries the user's verified
-public IP — private/LAN addresses are never sent to third parties.
+The CVE lookup (NIST NVD), passive exposure (Shodan InternetDB), and IP reputation
+(AbuseIPDB) checks are all read-only. `NVD_API_KEY` is optional and only raises NVD
+rate limits; InternetDB requires no key; `ABUSEIPDB_API_KEY` enables reputation and
+the check is skipped if it's absent. All IP-based lookups only query the user's
+verified public IP — private/LAN addresses are never sent to third parties.
+
+The recurring scan runs daily via Vercel Cron (see `vercel.json`, path
+`/api/cron/recurring-scan`), re-running the checks for every user who opted in and
+emailing a plain-English summary. Email delivery is currently a stub (the payload is
+logged server-side and shown in the dashboard); swap `lib/email.ts` onto a real
+provider to send live mail. `CRON_SECRET` protects the endpoint from public
+invocation. Note: Vercel Hobby cron runs at most once per day; the dashboard's
+"Run scan & email now" button triggers the same path on demand.
 
 For local development without Neon Postgres or the hosted agent, use the file-backed local setup in `docs/local_development.md`. The short version is:
 
