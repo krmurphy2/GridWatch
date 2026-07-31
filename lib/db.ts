@@ -99,5 +99,15 @@ export async function ensureSchema() {
     )
   `;
 
+  // Router-check findings the user has acknowledged ("keeping on purpose"), stored
+  // as an array of stable finding keys. One row per user; upserts in place.
+  await sql`
+    create table if not exists acknowledged_findings (
+      user_id text primary key references users(id) on delete cascade,
+      keys jsonb not null default '[]'::jsonb,
+      updated_at timestamptz not null default now()
+    )
+  `;
+
   schemaReady = true;
 }

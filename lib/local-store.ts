@@ -42,6 +42,11 @@ type LocalScanSettings = {
   settings: ScanSettings;
 };
 
+type LocalAcknowledgedFindings = {
+  userId: string;
+  keys: string[];
+};
+
 type LocalData = {
   users: LocalUser[];
   sessions: LocalSession[];
@@ -49,6 +54,7 @@ type LocalData = {
   chatMessages: LocalChatMessage[];
   securityFindings: LocalSecurityFindings[];
   scanSettings: LocalScanSettings[];
+  acknowledgedFindings: LocalAcknowledgedFindings[];
 };
 
 type SaveRouterProfileInput = {
@@ -68,7 +74,8 @@ const defaultData: LocalData = {
   routerProfiles: [],
   chatMessages: [],
   securityFindings: [],
-  scanSettings: []
+  scanSettings: [],
+  acknowledgedFindings: []
 };
 
 function getLocalDataPath() {
@@ -87,7 +94,8 @@ async function readLocalData(): Promise<LocalData> {
       routerProfiles: parsed.routerProfiles ?? [],
       chatMessages: parsed.chatMessages ?? [],
       securityFindings: parsed.securityFindings ?? [],
-      scanSettings: parsed.scanSettings ?? []
+      scanSettings: parsed.scanSettings ?? [],
+      acknowledgedFindings: parsed.acknowledgedFindings ?? []
     };
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
@@ -326,6 +334,20 @@ export async function localGetRecurringScanUserIds(): Promise<string[]> {
   return data.scanSettings
     .filter((entry) => entry.settings.recurringEnabled && entry.settings.notifyEmail)
     .map((entry) => entry.userId);
+}
+
+export async function localGetAcknowledgedFindingKeys(userId: string): Promise<string[]> {
+  const data = await readLocalData();
+  return data.acknowledgedFindings.find((entry) => entry.userId === userId)?.keys ?? [];
+}
+
+export async function localSetAcknowledgedFindingKeys(userId: string, keys: string[]) {
+  const data = await readLocalData();
+  const others = data.acknowledgedFindings.filter((entry) => entry.userId !== userId);
+  await writeLocalData({
+    ...data,
+    acknowledgedFindings: [...others, { userId, keys }]
+  });
 }
 
 export async function localSaveRouterProfile(input: SaveRouterProfileInput) {

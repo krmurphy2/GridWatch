@@ -1,18 +1,30 @@
+import type { Finding } from "./posture";
 import type { NotificationPayload, RouterProfile, SecurityFindings } from "./types";
 
 // Compose a plain-text notification email from a completed scan. Kept separate
 // from delivery so it can be unit-tested and reused by any provider.
+//
+// `routerActions` are the unacknowledged router-config "action needed" items from
+// the posture (Router checks) — passed in already filtered so the email respects
+// acknowledgements exactly like the dashboard does.
 export function buildScanNotification(
   to: string,
   findings: SecurityFindings,
-  profile: RouterProfile | null
+  profile: RouterProfile | null,
+  routerActions: Finding[] = []
 ): NotificationPayload {
   const assessment = findings.assessment;
-  const riskLevel = assessment?.riskLevel ?? "low";
+  const externalRisk = assessment?.riskLevel ?? "low";
+  const hasRouterActions = routerActions.length > 0;
   const routerLabel =
     [profile?.routerVendor, profile?.routerModel].filter(Boolean).join(" ") || "your router";
 
-  const riskWord = riskLevel === "high" ? "Action needed" : riskLevel === "medium" ? "A few things to review" : "All clear";
+  // Router config actions count toward "needs attention" so the subject line isn't
+  // "All clear" when there are unacknowledged settings to review.
+  const effectiveRisk =
+    externalRisk === "high" ? "high" : externalRisk === "medium" || hasRouterActions ? "medium" : "low";
+  const riskWord =
+    effectiveRisk === "high" ? "Action needed" : effectiveRisk === "medium" ? "A few things to review" : "All clear";
   const subject = `GridWatch scan: ${riskWord} for ${routerLabel}`;
 
   const lines: string[] = [];
@@ -25,9 +37,17 @@ export function buildScanNotification(
 
   const actions = assessment?.actions ?? [];
   if (actions.length > 0) {
-    lines.push("What to do:");
+    lines.push("What to do (vulnerabilities & exposure):");
     for (const action of actions) {
       lines.push(`- [${action.priority.toUpperCase()}] ${action.title}: ${action.detail}`);
+    }
+    lines.push("");
+  }
+
+  if (hasRouterActions) {
+    lines.push("Router settings to review:");
+    for (const action of routerActions) {
+      lines.push(`- ${action.label}: ${action.detail}`);
     }
     lines.push("");
   }
@@ -37,7 +57,8 @@ export function buildScanNotification(
   const abuseScore = findings.reputation.result?.found ? findings.reputation.result.abuseConfidenceScore : 0;
   lines.push(
     `Scan summary: ${cveCount} known vulnerabilit${cveCount === 1 ? "y" : "ies"}, ` +
-      `${openPorts} exposed port${openPorts === 1 ? "" : "s"}, IP reputation ${abuseScore}/100.`
+      `${openPorts} exposed port${openPorts === 1 ? "" : "s"}, IP reputation ${abuseScore}/100, ` +
+      `${routerActions.length} router setting${routerActions.length === 1 ? "" : "s"} to review.`
   );
   lines.push("");
   lines.push("Open your GridWatch dashboard for the full breakdown.");
@@ -59,9 +80,10 @@ export function buildScanNotification(
 export async function sendScanNotification(
   to: string,
   findings: SecurityFindings,
-  profile: RouterProfile | null
+  profile: RouterProfile | null,
+  routerActions: Finding[] = []
 ): Promise<NotificationPayload> {
-  const payload = buildScanNotification(to, findings, profile);
+  const payload = buildScanNotification(to, findings, profile, routerActions);
 
   // eslint-disable-next-line no-console
   console.info(

@@ -3,6 +3,8 @@ import { getLatestRouterProfile } from "@/lib/router-profile";
 import { runSecurityChecksForUser } from "@/lib/security-scan";
 import { sendScanNotification } from "@/lib/email";
 import { getRecurringScanUserIds, getScanSettings, saveScanSettings } from "@/lib/scan-settings";
+import { getAcknowledgedFindingKeys } from "@/lib/acknowledgements";
+import { unacknowledgedActions } from "@/lib/posture";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +47,9 @@ export async function GET(request: Request) {
       }
 
       const profile = await getLatestRouterProfile(userId);
-      const payload = await sendScanNotification(settings.notifyEmail, findings, profile);
+      const acknowledgedKeys = await getAcknowledgedFindingKeys(userId);
+      const routerActions = profile ? unacknowledgedActions(profile, acknowledgedKeys) : [];
+      const payload = await sendScanNotification(settings.notifyEmail, findings, profile, routerActions);
       await saveScanSettings(userId, { lastNotification: payload });
       results.push({ userId, status: "notified", risk: findings.assessment?.riskLevel });
     } catch {
