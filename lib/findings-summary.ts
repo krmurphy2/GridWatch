@@ -156,8 +156,8 @@ export function buildHeuristicAssessment(input: SummaryInput): FindingsAssessmen
   } else {
     headline = "No urgent problems found";
     summary =
-      `Good news — we didn't find known vulnerabilities or risky internet-facing services for ${routerLabel}. ` +
-      "Keep your firmware up to date and check back periodically.";
+      `Good news — we didn't find known vulnerabilities, risky internet-facing services, or a poor IP ` +
+      `reputation for ${routerLabel}. Keep your firmware up to date and check back periodically.`;
   }
 
   return { headline, riskLevel, summary, actions, source: "heuristic", sources: [] };

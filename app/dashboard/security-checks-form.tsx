@@ -16,8 +16,8 @@ function RunButton({ hasResults }: { hasResults: boolean }) {
       </button>
       {pending ? (
         <p className="pending-note" role="status" aria-live="polite">
-          Querying NIST NVD for known router vulnerabilities and Shodan InternetDB for public exposure.
-          This can take a few seconds.
+          Querying NIST NVD for known router vulnerabilities, Shodan InternetDB for public exposure, and
+          AbuseIPDB for your public IP&apos;s reputation. This can take a few seconds.
         </p>
       ) : null}
     </>
