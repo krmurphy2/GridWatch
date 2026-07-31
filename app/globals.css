@@ -413,6 +413,51 @@ textarea {
   padding-top: 14px;
 }
 
+.ack-form {
+  margin-top: 8px;
+}
+
+.ack-button {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #93c5fd;
+  cursor: pointer;
+}
+
+.ack-button:hover {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text);
+}
+
+.acknowledged-section {
+  margin-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding-top: 12px;
+}
+
+.acknowledged-section > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--muted);
+  list-style: revert;
+}
+
+.acknowledged-section .finding {
+  opacity: 0.8;
+}
+
+.badge-acknowledged {
+  background: rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
 .recurring-scan {
   margin-top: 12px;
   border-top: 1px solid rgba(148, 163, 184, 0.18);

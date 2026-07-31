@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildScanNotification } from "./email";
+import type { Finding } from "./posture";
 import type { RouterProfile, SecurityFindings } from "./types";
 
 function findings(overrides: Partial<SecurityFindings> = {}): SecurityFindings {
@@ -77,5 +78,37 @@ describe("buildScanNotification", () => {
     );
     expect(payload.subject).toContain("All clear");
     expect(payload.subject).toContain("your router");
+  });
+
+  it("includes unacknowledged router actions and bumps the subject off 'All clear'", () => {
+    const routerActions: Finding[] = [
+      {
+        key: "portForwarding",
+        label: "Port forwarding rules",
+        level: "attention",
+        detail: "One or more of these doors are open.",
+        why: "…"
+      }
+    ];
+    const payload = buildScanNotification(
+      "user@example.com",
+      findings({
+        assessment: {
+          headline: "No urgent problems found",
+          riskLevel: "low",
+          summary: "Good news.",
+          actions: [],
+          source: "heuristic",
+          sources: []
+        }
+      }),
+      profile,
+      routerActions
+    );
+    expect(payload.body).toContain("Router settings to review:");
+    expect(payload.body).toContain("Port forwarding rules: One or more of these doors are open.");
+    expect(payload.body).toContain("1 router setting to review");
+    // low external risk + a router action => "A few things to review", not "All clear"
+    expect(payload.subject).toContain("A few things to review");
   });
 });

@@ -52,11 +52,14 @@ logged server-side and displayed in the UI. Planned:
 
 ## Product / UX
 
-- **Review & acknowledge posture findings (port forwarding first)** — let the user
-  mark a finding (e.g. an intentional port-forwarding rule) as approved/acknowledged
-  so it's silenced from "action needed," with the acknowledgement retained in
-  assessment memory. Generalize to any posture finding, and track **remediation
-  status** over time (fixed / acknowledged / outstanding).
+- **Acknowledge posture findings** — *shipped in the POC.* Users can acknowledge a
+  router-check finding they're intentionally keeping (e.g. a deliberate port-forwarding
+  rule or UPnP); it drops out of "action needed" into an "Acknowledged" section and
+  stops counting toward the tab badge, retained per user in `acknowledged_findings`.
+  Still planned on top of it:
+  - **Optional reason/note** captured with an acknowledgement.
+  - **Remediation status** over time (fixed / acknowledged / outstanding), and
+    extending acknowledgement to the external-check findings (CVEs, exposed ports).
 
 ## Privacy & data handling (before real users)
 

@@ -23,6 +23,12 @@ import { getScanSettings, saveScanSettings } from "@/lib/scan-settings";
 import { sendScanNotification } from "@/lib/email";
 import { screenChatMessage } from "@/lib/guardrails";
 import { isValidEmail } from "@/lib/validation";
+import {
+  ACKNOWLEDGEABLE_FINDING_KEYS,
+  getAcknowledgedFindingKeys,
+  setFindingAcknowledged
+} from "@/lib/acknowledgements";
+import { unacknowledgedActions } from "@/lib/posture";
 
 const maxChatMessageLength = 2000;
 const chatHistoryLimit = 20;
@@ -251,7 +257,9 @@ export async function runRecurringScanNowAction(
     }
 
     const profile = await getLatestRouterProfile(user.id);
-    const payload = await sendScanNotification(recipient, findings, profile);
+    const acknowledgedKeys = await getAcknowledgedFindingKeys(user.id);
+    const routerActions = profile ? unacknowledgedActions(profile, acknowledgedKeys) : [];
+    const payload = await sendScanNotification(recipient, findings, profile, routerActions);
     await saveScanSettings(user.id, { lastNotification: payload });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not run the scan." };
@@ -259,6 +267,26 @@ export async function runRecurringScanNowAction(
 
   revalidatePath("/dashboard");
   return { ok: true };
+}
+
+// Acknowledge (or un-acknowledge) a router-check finding the user is intentionally
+// keeping — e.g. a deliberate port-forwarding rule. Acknowledged findings drop out
+// of the "action needed" list. Keys are validated against a fixed allow-list so a
+// tampered form can't persist arbitrary values.
+export async function toggleFindingAcknowledgementAction(formData: FormData) {
+  const user = await requireUser();
+
+  const key = formData.get("key");
+  const acknowledged = formData.get("acknowledged") === "true";
+
+  if (
+    typeof key === "string" &&
+    (ACKNOWLEDGEABLE_FINDING_KEYS as readonly string[]).includes(key)
+  ) {
+    await setFindingAcknowledged(user.id, key, acknowledged);
+  }
+
+  revalidatePath("/dashboard");
 }
 
 export type ProfileEditState = { error?: string; ok?: boolean };
