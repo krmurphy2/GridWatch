@@ -10,6 +10,7 @@ import { signOutAction } from "../actions";
 import { ProfileEditForm } from "./profile-edit-form";
 import { SecurityChecksForm } from "./security-checks-form";
 import { RecurringScanForm } from "./recurring-scan-form";
+import { DashboardTabs } from "./dashboard-tabs";
 
 type PostureLevel = "good" | "attention" | "unknown";
 // `detail` says what we saw and what to do; `why` is a plain-English reason the
@@ -491,104 +492,127 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
           <p className="success">Router evidence saved. Your security overview is updated below.</p>
         ) : null}
 
-        <section className="card">
-          <div className="card-inner stack">
-            <div>
-              <p className="eyebrow">Your router settings</p>
-              <h2>
-                {attentionCount > 0
-                  ? `${attentionCount} setting${attentionCount > 1 ? "s" : ""} worth changing`
-                  : "Your main settings look safe"}
-              </h2>
-              <p className="muted">
-                This is based on the router screenshots you uploaded. Here is what each important
-                setting means and why it matters.
-                {unknownCount > 0
-                  ? ` We couldn't read ${unknownCount} of them yet — add more screenshots to complete the picture.`
-                  : " We were able to check every setting we look for."}
-              </p>
-            </div>
-            <ul className="finding-list">
-              {findings.map((finding) => (
-                <li className="finding" key={finding.label}>
-                  <span className={`badge badge-${finding.level}`}>{levelLabel[finding.level]}</span>
-                  <div>
-                    <b>{finding.label}</b>
-                    <p className="muted">{finding.detail}</p>
-                    <p className="why">
-                      <b>Why it matters:</b> {finding.why}
-                    </p>
+        <DashboardTabs
+          defaultTabId="settings"
+          tabs={[
+            {
+              id: "settings",
+              label: "Router checks",
+              badge: attentionCount,
+              content: (
+                <section className="card">
+                  <div className="card-inner stack">
+                    <div>
+                      <p className="eyebrow">Your router settings</p>
+                      <h2>
+                        {attentionCount > 0
+                          ? `${attentionCount} setting${attentionCount > 1 ? "s" : ""} worth changing`
+                          : "Your main settings look safe"}
+                      </h2>
+                      <p className="muted">
+                        This is based on the router screenshots you uploaded. Here is what each important
+                        setting means and why it matters.
+                        {unknownCount > 0
+                          ? ` We couldn't read ${unknownCount} of them yet — add more screenshots to complete the picture.`
+                          : " We were able to check every setting we look for."}
+                      </p>
+                    </div>
+                    <ul className="finding-list">
+                      {findings.map((finding) => (
+                        <li className="finding" key={finding.label}>
+                          <span className={`badge badge-${finding.level}`}>{levelLabel[finding.level]}</span>
+                          <div>
+                            <b>{finding.label}</b>
+                            <p className="muted">{finding.detail}</p>
+                            <p className="why">
+                              <b>Why it matters:</b> {finding.why}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
+                </section>
+              )
+            },
+            {
+              id: "checks",
+              label: "External checks",
+              content: (
+                <SecurityChecksCard findings={securityFindings} scanSettings={scanSettings} userEmail={user.email} />
+              )
+            },
+            {
+              id: "details",
+              label: "Router details",
+              badge: profile.missingFields.length,
+              content: (
+                <div className="two-column">
+                  <section className="card">
+                    <div className="card-inner stack">
+                      <div>
+                        <p className="eyebrow">Saved profile</p>
+                        <h2>Router details</h2>
+                        <p className="muted">
+                          Review and complete anything the extractor couldn&apos;t read from your upload
+                          ({profile.imageName ?? "unknown file"}).
+                        </p>
+                      </div>
+                      <ProfileEditForm
+                        values={{
+                          routerVendor: profile.routerVendor,
+                          routerModel: profile.routerModel,
+                          hardwareVersion: profile.hardwareVersion,
+                          firmwareVersion: profile.firmwareVersion,
+                          publicIp: profile.publicIp,
+                          routerAdminUrl: profile.routerAdminUrl,
+                          upnpStatus: profile.upnpStatus,
+                          remoteAdminStatus: profile.remoteAdminStatus,
+                          portForwardingStatus: profile.portForwardingStatus,
+                          wifiSecurity: profile.wifiSecurity
+                        }}
+                        publicIpSuggestion={publicIpSuggestion}
+                      />
+                      <div className="label-value">
+                        <b>Scan approved</b>
+                        <span>
+                          {profile.scanApproved
+                            ? `Yes${profile.scanTargetIp ? ` for ${profile.scanTargetIp}` : ""}`
+                            : "No"}
+                        </span>
+                      </div>
+                    </div>
+                  </section>
 
-        <SecurityChecksCard findings={securityFindings} scanSettings={scanSettings} userEmail={user.email} />
-
-        <div className="two-column">
-          <section className="card">
-            <div className="card-inner stack">
-              <div>
-                <p className="eyebrow">Saved profile</p>
-                <h2>Router details</h2>
-                <p className="muted">
-                  Review and complete anything the extractor couldn&apos;t read from your upload
-                  ({profile.imageName ?? "unknown file"}).
-                </p>
-              </div>
-              <ProfileEditForm
-                values={{
-                  routerVendor: profile.routerVendor,
-                  routerModel: profile.routerModel,
-                  hardwareVersion: profile.hardwareVersion,
-                  firmwareVersion: profile.firmwareVersion,
-                  publicIp: profile.publicIp,
-                  routerAdminUrl: profile.routerAdminUrl,
-                  upnpStatus: profile.upnpStatus,
-                  remoteAdminStatus: profile.remoteAdminStatus,
-                  portForwardingStatus: profile.portForwardingStatus,
-                  wifiSecurity: profile.wifiSecurity
-                }}
-                publicIpSuggestion={publicIpSuggestion}
-              />
-              <div className="label-value">
-                <b>Scan approved</b>
-                <span>
-                  {profile.scanApproved
-                    ? `Yes${profile.scanTargetIp ? ` for ${profile.scanTargetIp}` : ""}`
-                    : "No"}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <section className="card">
-            <div className="card-inner stack">
-              <div>
-                <p className="eyebrow">Next evidence needed</p>
-                <h2>Missing from evidence</h2>
-              </div>
-              {profile.missingFields.length > 0 ? (
-                <ul className="result-list">
-                  {profile.missingFields.map((field) => (
-                    <li key={field}>{field}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="success">No required fields were reported missing by the extractor.</p>
-              )}
-              {profile.extraction.notes.length > 0 ? (
-                <div className="notice">
-                  {profile.extraction.notes.map((note) => (
-                    <p key={note}>{note}</p>
-                  ))}
+                  <section className="card">
+                    <div className="card-inner stack">
+                      <div>
+                        <p className="eyebrow">Next evidence needed</p>
+                        <h2>Missing from evidence</h2>
+                      </div>
+                      {profile.missingFields.length > 0 ? (
+                        <ul className="result-list">
+                          {profile.missingFields.map((field) => (
+                            <li key={field}>{field}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="success">No required fields were reported missing by the extractor.</p>
+                      )}
+                      {profile.extraction.notes.length > 0 ? (
+                        <div className="notice">
+                          {profile.extraction.notes.map((note) => (
+                            <p key={note}>{note}</p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </section>
                 </div>
-              ) : null}
-            </div>
-          </section>
-        </div>
+              )
+            }
+          ]}
+        />
       </div>
     </main>
   );
